@@ -1,0 +1,13 @@
+.user-list {
+    display: flex;
+    justify-content: space-between;
+}
+
+.user-card {
+    cursor: pointer;
+}
+
+.avatar {
+    width: 180px;
+    height: 180px;
+}
