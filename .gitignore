@@ -3,3 +3,4 @@
 cscope*
 *.swp
 zeromq-install
+*.o
