@@ -1,0 +1,12 @@
+#edit-entry {
+    margin-left: 15px;
+}
+
+#like-btn {
+    cursor: pointer;
+}
+
+#like-btn img {
+    width: 130px;
+    height: 130px;
+}

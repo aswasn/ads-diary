@@ -1,0 +1,44 @@
+.largest-font {
+    font-size: 8rem;
+}
+
+.larger-font {
+    font-size: 6rem;
+}
+
+.large-font {
+    font-size: 5rem;
+}
+
+.normal-font {
+    font-size: 4rem;
+}
+
+.small-font {
+    font-size: 3rem;
+}
+
+.smaller-font {
+    font-size: 2rem;
+}
+
+.smallest-font {
+    font-size: 1rem;
+}
+
+.center-text {
+    text-align: center;
+}
+
+html {
+    background: url(../img/bg.jpg) repeat;
+}
+
+body {
+    margin: 20px 10%;
+}
+
+article {
+    background: rgba(225, 225, 225, 0.3);
+    padding: 10px;
+}
