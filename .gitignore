@@ -2,3 +2,11 @@
 .vscode
 cscope*
 *.swp
+zeromq-install
+hiredis
+mongoose/src
+mongoose/docs
+mongoose/jni
+mongoose/tools
+mongoose/test
+mongoose/restful_server/restful_server.dSYM

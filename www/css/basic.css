@@ -42,3 +42,7 @@ article {
     background: rgba(225, 225, 225, 0.3);
     padding: 10px;
 }
+
+#login-entry {
+    margin-left: 15px;
+}
