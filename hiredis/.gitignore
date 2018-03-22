@@ -2,4 +2,3 @@
 .vscode
 cscope*
 *.swp
-zeromq-install
