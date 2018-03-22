@@ -5,14 +5,87 @@
 
 #include "mongoose.h"
 #include <hiredis.h>
+#include <zmq.h>
+#include <pthread.h>
+#include <assert.h>
+#include <stdint.h>
+
+typedef void* thread_func_t (void *);
 
 static const char *s_http_port = "8000";
 static struct mg_serve_http_opts s_http_server_opts;
 
 static redisContext *redis_cli;
+static void *zmq_ctx;
+
+#define KEY_LEN 32
 
 
+typedef struct {
+    uint32_t msg_len;    // aligened to 8 bytes
+    uint32_t value_len;
+    char key[KEY_LEN];
+    char *value;
+} __attribute__((packed)) replicate_msg_t;
 
+
+typedef struct {
+    void *cli_sock;
+    void *srv_sock;
+    thread_func_t* process;
+} replicater_t;
+
+void redis_init()
+{
+    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+    char *hostname = "127.0.0.1";
+    int port = 6379;
+    redis_cli = redisConnectWithTimeout(hostname, port, timeout);
+    if (redis_cli == NULL || redis_cli->err) {
+        if (redis_cli) {
+            printf("Connection error: %s\n", redis_cli->errstr);
+            redisFree(redis_cli);
+        } else {
+            printf("Connection error: can't allocate redis context\n");
+        }
+        exit(1);
+    }
+}
+
+void replicater_init(replicater_t *r)
+{
+    zmq_ctx = zmq_ctx_new();
+    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
+    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
+    zmq_connect(r->cli_sock, "tcp://192.168.13.97:5555");
+
+}
+
+void *replicater_thread(void *arg)
+{
+    replicater_t *r = (replicater_t *)arg;
+    assert(r->cli_sock != NULL);
+    assert(r->srv_sock != NULL);
+    uint32_t msg_len;
+    replicate_msg_t *msg_ptr;
+    char *buf;
+
+    int rc;
+    while (1) {
+        msg_len = 0;
+        rc = zmq_recv(r->srv_sock, &msg_len, sizeof(msg_len), 0);
+        if (rc == -1) {
+            perror("zmq_recv");
+            exit(1);
+        }
+
+        buf = (char*) malloc(msg_len);
+        msg_ptr = (replicate_msg_t *)buf;
+        assert(msg_len == msg_ptr->msg_len);
+        free(buf);
+    }
+
+}
 
 static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
   char n1[100], n2[100];
@@ -58,23 +131,6 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   }
 }
 
-void redis_init()
-{
-    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
-    char *hostname = "127.0.0.1";
-    int port = 6379;
-    redis_cli = redisConnectWithTimeout(hostname, port, timeout);
-    if (redis_cli == NULL || redis_cli->err) {
-        if (redis_cli) {
-            printf("Connection error: %s\n", redis_cli->errstr);
-            redisFree(redis_cli);
-        } else {
-            printf("Connection error: can't allocate redis context\n");
-        }
-        exit(1);
-    }
-}
-
 int main(int argc, char *argv[]) {
   struct mg_mgr mgr;
   struct mg_connection *nc;
@@ -89,6 +145,8 @@ int main(int argc, char *argv[]) {
 
   mg_mgr_init(&mgr, NULL);
   redis_init();
+
+
   /* PING server */
   reply = redisCommand(redis_cli,"PING");
   printf("REDIS_CLI: PING: %s\n", reply->str);

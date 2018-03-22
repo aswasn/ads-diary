@@ -4,6 +4,7 @@ CFLAGS = -g -W -Wall -Werror -I../ -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE
 PROG = restful_server
 MODULE_CFLAGS=-DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 MODULE_CFLAGS+=-I/usr/local/include/hiredis -lhiredis
+MODULE_CFLAGS+=-I../../zeromq-install/include -L../../zeromq-install/lib -lzmq
 
 all: $(PROG)
 
