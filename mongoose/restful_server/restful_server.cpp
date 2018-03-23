@@ -180,20 +180,8 @@ static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
 static void get_diary_content(struct mg_connection *nc, struct http_message *hm) {
   char diary_id[100];
   redisReply *reply;
+  // TODO
 
-  /* Get form variables */
-  mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
-
-  /* Send headers */
-  mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-
-  /* Compute the result and send it back as a JSON object */
-  reply = redisCommand(redis_cli, "GET %s %s", "diary", (int)result);
-  printf("REDIS_CLI: SET: %s\n", reply->str);
-  freeReplyObject(reply);
-
-  mg_printf_http_chunk(nc, "{ \"result\": %lf }", result);
-  mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
@@ -286,13 +274,13 @@ int main(int argc, char *argv[]) {
   printf("replicater created!\n");
 
 
-  rep_msg_t rep_msg;
-  strncpy(rep_msg.key, key_, MAX_KEY_LEN);
-  rep_msg.key_len = strlen(rep_msg.key) + 1;
-  strncpy(rep_msg.value, value_, MAX_VALUE_LEN);
-  rep_msg.value_len = strlen(rep_msg.value) + 1;
+  // rep_msg_t rep_msg;
+  // strncpy(rep_msg.key, key_, MAX_KEY_LEN);
+  // rep_msg.key_len = strlen(rep_msg.key) + 1;
+  // strncpy(rep_msg.value, value_, MAX_VALUE_LEN);
+  // rep_msg.value_len = strlen(rep_msg.value) + 1;
 
-  msg_list.push_back(rep_msg);
+  // msg_list.push_back(rep_msg);
 
   /* Set HTTP server options */
   memset(&bind_opts, 0, sizeof(bind_opts));
