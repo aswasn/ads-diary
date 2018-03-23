@@ -23,16 +23,22 @@ static void *zmq_ctx;
 
 typedef struct {
     uint32_t msg_len;    // aligened to 8 bytes
-    uint32_t value_len;
-    char key[KEY_LEN];
-    char *value;
+
+    struct msg_body {
+        uint32_t value_len;
+        char key[KEY_LEN];
+        char *value;
+    } body;
 } __attribute__((packed)) replicate_msg_t;
 
 
 typedef struct {
+    pthread_t tid;
     void *cli_sock;
     void *srv_sock;
     thread_func_t* process;
+    char remote_host[32];
+    int remote_port;
 } replicater_t;
 
 void redis_init()
@@ -52,22 +58,13 @@ void redis_init()
     }
 }
 
-void replicater_init(replicater_t *r)
-{
-    zmq_ctx = zmq_ctx_new();
-    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
-    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
-    zmq_connect(r->cli_sock, "tcp://192.168.13.97:5555");
-
-}
-
 void *replicater_thread(void *arg)
 {
     replicater_t *r = (replicater_t *)arg;
     assert(r->cli_sock != NULL);
     assert(r->srv_sock != NULL);
-    uint32_t msg_len;
-    replicate_msg_t *msg_ptr;
+    uint32_t msg_len, data_len;
+    struct msg_body *msg;
     char *buf;
 
     int rc;
@@ -75,16 +72,49 @@ void *replicater_thread(void *arg)
         msg_len = 0;
         rc = zmq_recv(r->srv_sock, &msg_len, sizeof(msg_len), 0);
         if (rc == -1) {
-            perror("zmq_recv");
+            perror("replicater: zmq_recv msg_len");
             exit(1);
         }
+        data_len = msg_len - sizeof(msg_len);
 
-        buf = (char*) malloc(msg_len);
-        msg_ptr = (replicate_msg_t *)buf;
-        assert(msg_len == msg_ptr->msg_len);
+        buf = (char*) malloc(data_len);
+        rc = zmq_recv(r->srv_sock, buf, sizeof(struct msg_body), 0);
+        if (rc == -1) {
+            perror("replicater: zmq_recv payload");
+            exit(1);
+        }
+        msg = (struct msg_body *)buf;
+        assert(data_len == msg->value_len + KEY_LEN);
+
+
+        printf("replicater: received message[msg_len:%d, value_len:%d, value:%s]\n",
+                msg_len, msg->value_len, msg->value);
+
+
         free(buf);
     }
 
+}
+
+void replicater_init(replicater_t *r)
+{
+    zmq_ctx = zmq_ctx_new();
+    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
+    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
+    r->process = replicater_thread;
+    r->remote_port = 5555;
+
+    char remote_addr[48];
+    int rc;
+    sprintf(remote_addr, "tcp:://%s:%d", r->remote_host, r->remote_port);
+    // client sock
+    printf("DEBUG: remote_addr: %s\n", remote_addr);
+
+    rc = zmq_connect(r->cli_sock, remote_addr);
+    assert(rc == 0);
+    rc = zmq_bind(r->srv_sock, "tcp://127.0.0.1:5555");
+    assert(rc == 0);
+    printf("DEBUG: replicater_init success\n");
 }
 
 static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
@@ -142,6 +172,7 @@ int main(int argc, char *argv[]) {
   const char *ssl_cert = NULL;
 #endif
   redisReply *reply;
+  replicater_t replicater;
 
   mg_mgr_init(&mgr, NULL);
   redis_init();
@@ -162,6 +193,10 @@ int main(int argc, char *argv[]) {
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-D") == 0 && i + 1 < argc) {
       mgr.hexdump_file = argv[++i];
+    } else if (strcmp(argv[i], "--remote_host") == 0 && i + 1 < argc) {
+        strcmp(replicater.remote_host, argv[++i]);
+    // } else if (strcmp(argv[i], "--remote_port") == 0 && i + 1 < argc) {
+        // replicater.remote_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
       s_http_server_opts.document_root = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
@@ -188,6 +223,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
+
+  printf("calling replicater_init...\n");
+  replicater_init(&replicater);
+  pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
+  printf("replicater created!\n");
+
+
   /* Set HTTP server options */
   memset(&bind_opts, 0, sizeof(bind_opts));
   bind_opts.error_string = &err_str;
@@ -211,6 +253,8 @@ int main(int argc, char *argv[]) {
   for (;;) {
     mg_mgr_poll(&mgr, 1000);
   }
+
+  pthread_join(replicater.tid, NULL);
   mg_mgr_free(&mgr);
 
   return 0;
