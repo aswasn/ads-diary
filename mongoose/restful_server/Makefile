@@ -1,5 +1,5 @@
-SOURCES = $(PROG).c ../mongoose.c
-CFLAGS = -g -W -Wall -Werror -I../ -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
+SOURCES = $(PROG).cpp ../mongoose.c
+CFLAGS = -g -W -I../ -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
 
 PROG = restful_server
 MODULE_CFLAGS=-DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
@@ -8,13 +8,8 @@ MODULE_CFLAGS+=-I../../zeromq-install/include -L../../zeromq-install/lib -lzmq
 
 all: $(PROG)
 
-ifeq ($(OS), Windows_NT)
-# TODO(alashkin): enable SSL in Windows
-CFLAGS += -lws2_32
-CC = gcc
-else
+CC = g++
 CFLAGS += -pthread
-endif
 
 $(PROG): $(SOURCES)
 	$(CC) $(SOURCES) -o $@ $(CFLAGS)
