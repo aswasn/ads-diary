@@ -5,5 +5,7 @@ cscope*
 zeromq-install
 mongoose/restful_server/restful_server
 mongoose/restful_server/restful_server.dSYM
+mongoose/server.dSYM
+mongoose/server
 *.o
 stub

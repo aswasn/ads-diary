@@ -31,7 +31,8 @@
 }
 
 body {
-    background: url(../img/bg.jpg) repeat;
+    background: url(../img/sakura.jpg) fixed;
+    background-size: cover;
 }
 
 .container {
@@ -39,7 +40,6 @@ body {
 }
 
 article {
-    background: rgba(225, 225, 225, 0.3);
     padding: 10px;
 }
 
@@ -48,5 +48,13 @@ article {
 }
 
 .navbar-text {
-    color: #fcdee2;
+    color: #fdecee;
+}
+
+.white-bg {
+    background: white;
+}
+
+.shadow {
+    box-shadow: 5px 5px 4px #888888;
 }

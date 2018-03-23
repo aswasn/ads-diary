@@ -7,7 +7,7 @@
         <link rel="stylesheet" type="text/css" href="css/detail.css">
     </head>
     <body>
-        <nav class="navbar justify-content-between" style="background-color: #e4356f;">
+        <nav class="navbar justify-content-between" style="background-color: #e4356f80;">
             <a class="navbar-brand navbar-text" href="index.html">卜衡的日记本</a>
             <div class="user-area">
                 <a id="login-entry" class="navbar-text" href="login.html">登录</a>
@@ -18,20 +18,21 @@
             <span id="title" class="large-font">文章标题</span>
             <button id="edit-entry" class="btn btn-primary" data-toggle="modal" data-target="#edit-modal">编辑</button>
 
-
-            <article id="content" class="small-font">这是文章内容</article>
-            <div id="like-btn" class="center-text">
-                <img src="img/like.png"/>
-                <div class="smaller-font">200人觉得很赞</div>
-            </div>
-            <div class="row">
-                <h3>评论</h3>
-                <ul class="col-md-12 list-group smaller-font" id="comment-list">
-                    <li class="list-group-item">这篇文章写的太好了！</li>
-                </ul>
-                <div class="comment-form col-md-12 row">
-                    <input type="text" id="comment-input" class="form-control col-md-6" placeholder="请输入评论内容" />
-                    <div class="col-md-6"><button id="send-comment-btn" class="btn btn-success">发表</button></div>
+            <div class="white-bg shadow row">
+                <article id="content" class="small-font col-md-12">这是文章内容</article>
+                <div id="like-btn" class="center-text col-md-12">
+                    <img src="img/like.png"/>
+                    <div class="smaller-font">200人觉得很赞</div>
+                </div>
+                <div class="col-md-12 row">
+                    <h3>评论</h3>
+                    <ul class="col-md-12 list-group smaller-font" id="comment-list">
+                        <li class="list-group-item">这篇文章写的太好了！</li>
+                    </ul>
+                    <div class="comment-form col-md-12 row">
+                        <input type="text" id="comment-input" class="form-control col-md-6" placeholder="请输入评论内容" />
+                        <div class="col-md-6"><button id="send-comment-btn" class="btn btn-success">发表</button></div>
+                    </div>
                 </div>
             </div>
         </div>
