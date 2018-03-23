@@ -2,24 +2,31 @@
     <head>
         <meta charset="UTF-8">
         <title>卜衡的日记本</title>
+        <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
         <link rel="stylesheet" type="text/css" href="css/basic.css">
         <link rel="stylesheet" type="text/css" href="css/index.css">
     </head>
     <body>
-        <div class="center-text">
-            <span class="large-font">卜衡的日记本</span>
-            <a id="login-entry" class="smaller-font" href="login.html">登录</a>
+        <nav class="navbar justify-content-between" style="background-color: #e4356f;">
+            <a class="navbar-brand navbar-text" href="#">卜衡的日记本</a>
+            <div class="user-area">
+                <a id="login-entry" class="navbar-text" href="login.html">登录</a>
+            </div>
+        </nav>
+        <div class="container">
+            <!-- <div class="center-text">
+                <img class="title-img" src="img/title.jpg" />
+            </div> -->
+            <ul class="normal-font list-group">
+                <li class="list-group-item"><a href="detail.html?diary_id=1">植物观察日记</a></li>
+                <li class="list-group-item"><a href="detail.html?diary_id=2">跟拍少女偶像</a></li>
+                <li class="list-group-item"><a href="detail.html?diary_id=3">科研脱发记录</a></li>
+            </ul>
         </div>
-
-        <ul class="normal-font">
-            <li><a href="detail.html?diary_id=1">植物观察日记</a></li>
-            <li><a href="detail.html?diary_id=2">跟拍少女偶像</a></li>
-            <li><a href="detail.html?diary_id=3">科研脱发记录</a></li>
-        </ul>
-
         <script type="text/javascript" src="js/js.cookie.js"></script>
         <script type="text/javascript" src="js/jquery.min.js"></script>
-        <script type="text/javascript" src="js/login.js"></script>
+        <script type="text/javascript" src="js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="js/common.js"></script>
         <script type="text/javascript" src="js/index.js"></script>
     </body>
 </html>
