@@ -29,18 +29,7 @@ static void *zmq_ctx;
 static char key_[MAX_KEY_LEN];
 static char value_[MAX_VALUE_LEN];
 
-int global_num_msgs = 1;
-
-
-struct msg_body {
-        uint32_t value_len;
-        char key[MAX_KEY_LEN];
-        char value[MAX_VALUE_LEN];
-} __attribute__((packed));
-
 struct rep_msg_t {
-    // uint32_t msg_len;    // aligened to 8 bytes
-    // msg_body body;
     uint32_t key_len;
     uint32_t value_len;
     char key[MAX_KEY_LEN];
@@ -86,8 +75,6 @@ void *replicater_thread(void *arg)
     replicater_t *r = (replicater_t *)arg;
     assert(r->cli_sock != NULL);
     assert(r->srv_sock != NULL);
-    // uint32_t msg_len, data_len;
-    // struct msg_body *msg;
     char *buf;
 
     int rc;
