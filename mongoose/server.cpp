@@ -1,8 +1,3 @@
-/*
- * Copyright (c) 2014 Cesanta Software Limited
- * All rights reserved
- */
-
 #include "mongoose.h"
 #include <hiredis.h>
 #include <zmq.h>
@@ -127,17 +122,21 @@ void *replicater_thread(void *arg)
 
 }
 
-void replicater_init(replicater_t *r, int remote_port, int local_port)
+void replicater_init(replicater_t *r, char *remote_host, int remote_port, int local_port)
 {
     zmq_ctx = zmq_ctx_new();
     r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
     r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
     r->process = replicater_thread;
-    r->remote_port = remote_port;
-    r->local_port = local_port;
+    if (strlen(remote_host) == 0)
+        strncpy(r->remote_host, "127.0.0.1", 32);
+    else
+        strncpy(r->remote_host, remote_host, 32);
+
+    r->remote_port = remote_port == 0 ? 8777 : remote_port;
+    r->local_port = local_port == 0 ? 8666 : local_port;
     r->poll_items[0].socket = r->srv_sock;
     r->poll_items[0].events = ZMQ_POLLIN;
-
 }
 
 static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
@@ -164,12 +163,32 @@ static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
 }
 
 // api/get_diary_content, read from local redis
-static void get_diary_content(struct mg_connection *nc, struct http_message *hm) {
+static void handle_get_diary_content(struct mg_connection *nc, struct http_message *hm) {
   char diary_id[100];
   redisReply *reply;
   // TODO
 
 }
+
+
+static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm) {
+
+    char diary_id[16], user_id[16];
+    char text[1024];
+    mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
+    mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
+    mg_get_http_var(&hm->body, "content", text, sizeof(text));
+
+    printf("DEBUG: handle_edit_diary: diary_id: '%s', user_id: '%s', text: '%s'\n",
+            diary_id, user_id, text);
+
+
+    /* Send response */
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+    mg_printf_http_chunk(nc, "{ \"success\": 1 }");
+    mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+}
+
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
@@ -179,7 +198,9 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
       if (mg_vcmp(&hm->uri, "/api/v1/sum") == 0) {
         handle_sum_call(nc, hm); /* Handle RESTful call */
       } else if (mg_vcmp(&hm->uri, "/api/get_diary_content") == 0) {
-        get_diary_content(nc, hm); /* Handle RESTful call */
+        handle_get_diary_content(nc, hm); /* Handle RESTful call */
+      } else if (mg_vcmp(&hm->uri, "/api/edit_diary") == 0) {
+        handle_edit_diary(nc, hm);
       } else if (mg_vcmp(&hm->uri, "/printcontent") == 0) {
         char buf[100] = {0};
         memcpy(buf, hm->body.p,
@@ -206,7 +227,8 @@ int main(int argc, char *argv[]) {
 #endif
   redisReply *reply;
   replicater_t replicater;
-  int remote_port, local_port;
+  int remote_port = 0, local_port = 0;
+  char remote_host[32] = {0};
 
 
   memset(&replicater, 0, sizeof(replicater));
@@ -230,11 +252,11 @@ int main(int argc, char *argv[]) {
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-D") == 0 && i + 1 < argc) {
       mgr.hexdump_file = argv[++i];
-    } else if (strcmp(argv[i], "--remote_host") == 0 && i + 1 < argc) {
-        strcpy(replicater.remote_host, argv[++i]);
-    } else if (strcmp(argv[i], "--remote_port") == 0 && i + 1 < argc) {
+    } else if (strcmp(argv[i], "--rhost") == 0 && i + 1 < argc) {
+        strcpy(remote_host, argv[++i]);
+    } else if (strcmp(argv[i], "--rport") == 0 && i + 1 < argc) {
         remote_port = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "--local_port") == 0 && i + 1 < argc) {
+    } else if (strcmp(argv[i], "--lport") == 0 && i + 1 < argc) {
         local_port = atoi(argv[++i]);
 
     } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
@@ -254,9 +276,9 @@ int main(int argc, char *argv[]) {
   }
 
 
-  replicater_init(&replicater, remote_port, local_port);
-  assert(replicater.remote_port > 0);
-  assert(replicater.local_port > 0);
+  replicater_init(&replicater, remote_host, remote_port, local_port);
+  // assert(replicater.remote_port > 0);
+  // assert(replicater.local_port > 0);
   pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
   printf("replicater created!\n");
 

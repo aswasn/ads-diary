@@ -1,10 +1,10 @@
-SOURCES = $(PROG).cpp ../mongoose.c
-CFLAGS = -g -W -I../ -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
+SOURCES = $(PROG).cpp mongoose.c
+CFLAGS = -g -O2 -W -I -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
 
-PROG = restful_server
+PROG = server
 MODULE_CFLAGS=-DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 MODULE_CFLAGS+=-I/usr/local/include/hiredis -lhiredis
-MODULE_CFLAGS+=-I../../zeromq-install/include -L../../zeromq-install/lib -lzmq
+MODULE_CFLAGS+=-I../zeromq-install/include -L../zeromq-install/lib -lzmq
 
 all: $(PROG)
 
