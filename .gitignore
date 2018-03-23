@@ -3,4 +3,6 @@
 cscope*
 *.swp
 zeromq-install
+mongoose/restful_server/restful_server
+mongoose/restful_server/restful_server.dSYM
 *.o
