@@ -176,6 +176,26 @@ static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
   mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
+// api/get_diary_content, read from local redis
+static void get_diary_content(struct mg_connection *nc, struct http_message *hm) {
+  char diary_id[100];
+  redisReply *reply;
+
+  /* Get form variables */
+  mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
+
+  /* Send headers */
+  mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+
+  /* Compute the result and send it back as a JSON object */
+  reply = redisCommand(redis_cli, "GET %s %s", "diary", (int)result);
+  printf("REDIS_CLI: SET: %s\n", reply->str);
+  freeReplyObject(reply);
+
+  mg_printf_http_chunk(nc, "{ \"result\": %lf }", result);
+  mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+}
+
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
 
@@ -183,6 +203,8 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
     case MG_EV_HTTP_REQUEST:
       if (mg_vcmp(&hm->uri, "/api/v1/sum") == 0) {
         handle_sum_call(nc, hm); /* Handle RESTful call */
+      } else if (mg_vcmp(&hm->uri, "/api/get_diary_content") == 0) {
+        get_diary_content(nc, hm); /* Handle RESTful call */
       } else if (mg_vcmp(&hm->uri, "/printcontent") == 0) {
         char buf[100] = {0};
         memcpy(buf, hm->body.p,
