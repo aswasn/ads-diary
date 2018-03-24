@@ -16,9 +16,10 @@
 }
 
 .white-bg.shadow.row {
-    padding: 15px;
+    padding: 50px 20px;
     border: 1px solid rgba(200,200,200,0.5);
     border-radius: 6px;
+    margin-bottom: 60px;
 }
 
 #title {
