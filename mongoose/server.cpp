@@ -361,13 +361,13 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
 
     if (diary_id == redis_like.diary_id && snapshot_ver == redis_like.ver) {
         redis_like.num += 1;
+        redis_like.ver += 1;
         json j = redis_like;
         reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
         freeReplyObject(reply);
         if (!psi_mode)
             SYNC_REPLICA;
     }
-
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
