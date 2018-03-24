@@ -30,4 +30,15 @@ namespace objects {
         d.utime = j.at("utime").get<uint64_t>();
     }
 
+    void to_json(json& j, const comment& c) {
+        j = json{{"id", c.id}, {"user", c.user}, {"content", c.content}, {"diary_id", c.diary_id}};
+    }
+
+    void from_json(const json& j, comment& c) {
+        c.id = j.at("id").get<int>();
+        c.user = j.at("user").get<std::string>();
+        c.content = j.at("content").get<std::string>();
+        c.diary_id = j.at("diary_id").get<uint64_t>();
+    }
+
 }
