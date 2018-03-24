@@ -53,8 +53,9 @@ pthread_mutex_t mutex;
 std::list<rep_msg_t> msg_list;
 
 
-void redis_init()
+void redis_init(char *remote_host, int remote_port)
 {
+    redisReply *reply;
     struct timeval timeout = { 60, 500000 }; // 1.5 seconds
     char *hostname = "127.0.0.1";
     int port = 6379;
@@ -68,6 +69,16 @@ void redis_init()
         }
         exit(1);
     }
+
+    // I am slave
+    if (global_slave) {
+        reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, remote_port);
+        if (reply->type == REDIS_REPLY_ERROR) {
+            printf("ERROR: slaveof %s:%d fail!\n", remote_host, remote_port);
+            assert(false);
+        }
+    }
+
 }
 
 void *replicater_thread(void *arg)
@@ -381,7 +392,6 @@ int main(int argc, char *argv[]) {
   memset(&replicater, 0, sizeof(replicater));
 
   mg_mgr_init(&mgr, NULL);
-  redis_init();
 
 
   /* PING server */
@@ -423,6 +433,8 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
   }
+
+  redis_init(remote_host, remote_port);
 
   std::stringstream ss;
   objects::diary diary = {1, 0, "wsy", "Hello world", timer::get_usec()};
