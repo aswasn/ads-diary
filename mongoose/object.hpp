@@ -14,9 +14,9 @@ namespace objects {
 
     struct comment {
         int id;
+        int diary_id;
         int ver;    // version
         std::string user;
-        int diary_id;
         std::string content;
     };
 

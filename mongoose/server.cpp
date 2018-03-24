@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <list>
 #include <sstream>
+#include <vector>
 #include "timer.hpp"
 
 typedef void* thread_func_t (void *);
@@ -500,6 +501,25 @@ void generate_data()
     freeReplyObject(reply);
 
     reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_3", d3.dump().c_str());
+    freeReplyObject(reply);
+
+    std::vector<std::string> users = {"wn", "wsy", "bh"};
+    std::vector<std::string> comments = {"这是评论1这是评论1这是评论1这是评论1这是评论1", "这是评论2这是评论2这是评论2这是评论2这是评论2",
+        "这是评论3这是评论3这是评论3这是评论3", "这是评论4这是评论4这是评论4这是评论4"};
+
+    /// comments
+    json d1_comments;
+    for (int i = 0; i < 5; ++i) {
+        objects::comment com;
+        com.id = i;
+        com.diary_id = 1;
+        com.ver = 0;
+        com.user = users[random() % 3];
+        com.content = comments[random() % 4];
+        d1_comments.push_back(com);
+    }
+
+    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_1_comments", d1_comments.dump().c_str());
     freeReplyObject(reply);
 
     printf("generate_data: done!\n");
