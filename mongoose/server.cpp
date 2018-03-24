@@ -20,6 +20,7 @@ static const char *s_http_port = "8000";
 static struct mg_serve_http_opts s_http_server_opts;
 
 static redisContext *redis_cli;
+static redisContext *redis_cli_master;
 static void *zmq_ctx;
 
 #define MAX_KEY_LEN 32
@@ -53,13 +54,13 @@ pthread_mutex_t mutex;
 std::list<rep_msg_t> msg_list;
 
 
-void redis_init(char *remote_host, int remote_port)
+void redis_init(char *remote_host)
 {
     redisReply *reply;
     struct timeval timeout = { 60, 500000 }; // 1.5 seconds
-    char *hostname = "127.0.0.1";
-    int port = 6379;
-    redis_cli = redisConnectWithTimeout(hostname, port, timeout);
+    char *local_host = "127.0.0.1";
+    const int PORT = 6379;
+    redis_cli = redisConnectWithTimeout(local_host, PORT, timeout);
     if (redis_cli == NULL || redis_cli->err) {
         if (redis_cli) {
             printf("Connection error: %s\n", redis_cli->errstr);
@@ -72,11 +73,29 @@ void redis_init(char *remote_host, int remote_port)
 
     // I am slave
     if (global_slave) {
-        reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, remote_port);
+
+        redis_cli_master = redisConnectWithTimeout(remote_host, PORT, timeout);
+        if (redis_cli_master == NULL || redis_cli_master->err) {
+            if (redis_cli_master) {
+                printf("Connection error: %s\n", redis_cli_master->errstr);
+                redisFree(redis_cli_master);
+            } else {
+                printf("Connection error: can't allocate redis context\n");
+            }
+            exit(1);
+        }
+
+        reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, PORT);
         if (reply->type == REDIS_REPLY_ERROR) {
-            printf("ERROR: slaveof %s:%d fail!\n", remote_host, remote_port);
+            printf("ERROR: slaveof %s:%d fail!\n", remote_host, PORT);
             assert(false);
         }
+        freeReplyObject(reply);
+
+
+        reply = REDIS_COMMAND(redis_cli, "info replication");
+        printf("INFO: %s\n", reply->str);
+        freeReplyObject(reply);
     }
 
 }
@@ -394,10 +413,6 @@ int main(int argc, char *argv[]) {
   mg_mgr_init(&mgr, NULL);
 
 
-  /* PING server */
-  reply = REDIS_COMMAND(redis_cli,"PING");
-  printf("REDIS_CLI: PING: %s\n", reply->str);
-  freeReplyObject(reply);
 
   /* Use current binary directory as document root */
   if (argc > 0 && ((cp = strrchr(argv[0], DIRSEP)) != NULL)) {
@@ -416,7 +431,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--lport") == 0 && i + 1 < argc) {
         local_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--slave") == 0 && i + 1 < argc) {
-        global_slave = atoi(argv[++i]);
+        global_slave = true;
         assert(global_slave);
     } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
         strncpy(key_, argv[++i], MAX_KEY_LEN);
@@ -434,22 +449,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  redis_init(remote_host, remote_port);
+  redis_init(remote_host);
 
-  std::stringstream ss;
-  objects::diary diary = {1, 0, "wsy", "Hello world", timer::get_usec()};
-  objects::diary diary2;
-
-  json j = diary;
-  json j2;
-  ss << j;
-
-  printf("JSON: diray: %s\n", ss.str().c_str());
-  ss >> j2;
-
-  diary2 = j2;
-  printf("Object: diray2{id: %d, ver: %d, user:%s, content:%s, uitme:%lu}\n",
-          diary2.id, diary2.ver, diary2.user.c_str(), diary2.content.c_str(), diary2.utime);
+  /* PING server */
+  reply = REDIS_COMMAND(redis_cli,"PING");
+  printf("REDIS_CLI: PING: %s\n", reply->str);
+  freeReplyObject(reply);
 
   /* Siyuan: 临时注释
    * replicater_init(&replicater, remote_host, remote_port, local_port);
