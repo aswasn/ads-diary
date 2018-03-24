@@ -89,7 +89,7 @@ function get_like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        if (msg.ver) like_version = msg.ver;
+        if (msg.ver != undefined && msg.ver != null) like_version = msg.ver;
         $("#like-num").text(msg.num);
     });
 }
@@ -107,8 +107,7 @@ function like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        const like_now = parseInt($("#like-num").text()) + 1;
-        $("#like-num").text(like_now);
+        location.reload();
     });
 }
 
