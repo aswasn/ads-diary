@@ -322,12 +322,14 @@ static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
     strcat(redis_d_id, "_like");
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    objects::like like = {atoi(d_id), 0};
+    objects::like like = {atoi(d_id), 0, 0};
+    if (reply->str != NULL)
+        like = json::parse(reply->str);
 
     /* Send headers */
-    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    like.num = reply->str == NULL ? 0 : atoi(reply->str);
+    // like.num = reply->str == NULL ? 0 : atoi(reply->str);
     json j = like;
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", j.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
@@ -335,19 +337,37 @@ static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
 
 static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     char redis_d_id[100] = "diary_", d_id[100];
+    char s_ver[16];
     redisReply *reply;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
+    mg_get_http_var(&hm->body, "snapshot_ver", s_ver, sizeof(s_ver));
     strcat(redis_d_id, d_id);
     strcat(redis_d_id, "_like");
 
+    int diary_id = atoi(d_id);
+    int snapshot_ver = atoi(s_ver);
 
+
+    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    objects::like redis_like = {diary_id, 0, 0};// = json.parse(reply->str);
     redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
-    reply = REDIS_COMMAND(cli, "INCR %s", redis_d_id);
-    freeReplyObject(reply);
-    if (!psi_mode)
-        SYNC_REPLICA;
+    if (reply->str == NULL) {
+        // do nothing
+    } else {
+        redis_like = json::parse(reply->str);
+    }
+
+    if (diary_id == redis_like.diary_id && snapshot_ver == redis_like.ver) {
+        redis_like.num += 1;
+        json j = redis_like;
+        reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
+        freeReplyObject(reply);
+        if (!psi_mode)
+            SYNC_REPLICA;
+    }
+
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
