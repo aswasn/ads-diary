@@ -27,6 +27,7 @@ static void *zmq_ctx;
 
 static char key_[MAX_KEY_LEN];
 static char value_[MAX_VALUE_LEN];
+static bool global_slave = false;
 
 struct rep_msg_t {
     uint32_t key_len;
@@ -294,21 +295,35 @@ static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
-
-    strncat(redis_d_id, d_id, 10);
+    strcat(redis_d_id, d_id);
+    strcat(redis_d_id, "_like");
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    printf("REDIS: GET %s: %s\n", redis_d_id, reply->str);
+    objects::like like = {atoi(d_id), 0};
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", reply->str);
+    like.num = atoi(reply->str);
+    json j = like;
+    mg_printf_http_chunk(nc, "%s", j.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }
 
 static void handle_like(struct mg_connection *nc, struct http_message *hm) {
-// TODO
+    char redis_d_id[100] = "diary_", d_id[100];
+    redisReply *reply;
+
+    /* Get form variables */
+    mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
+    strcat(redis_d_id, d_id);
+    strcat(redis_d_id, "_like");
+
+    reply = REDIS_COMMAND(redis_cli, "INCR %s", redis_d_id);
+    /* Send response */
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+    mg_printf_http_chunk(nc, "ok");
+    mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
@@ -390,7 +405,9 @@ int main(int argc, char *argv[]) {
         remote_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--lport") == 0 && i + 1 < argc) {
         local_port = atoi(argv[++i]);
-
+    } else if (strcmp(argv[i], "--slave") == 0 && i + 1 < argc) {
+        global_slave = atoi(argv[++i]);
+        assert(global_slave);
     } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
         strncpy(key_, argv[++i], MAX_KEY_LEN);
 
