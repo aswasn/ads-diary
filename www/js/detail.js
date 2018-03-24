@@ -51,7 +51,7 @@ function send_comment() {
         },
         dataType: "json"
     }).done(function(msg) {
-        console.log(msg);
+        location.reload();
     });
 }
 

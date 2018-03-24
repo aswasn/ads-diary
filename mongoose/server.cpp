@@ -236,7 +236,8 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
 }
 
 static void handle_add_comment(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100], d_id[100], user_id[100], content[500];
+    char redis_d_id[100] = "diary_", d_id[100], user_id[100], content[500];
+    std::vector<objects::comment> new_list;
     redisReply *reply;
 
     /* Get form variables */
@@ -244,17 +245,28 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
+    strcat(redis_d_id, d_id);
+    strcat(redis_d_id, "_comments");
+
+    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    if (reply->type != REDIS_REPLY_NIL) {
+        std::vector<objects::comment> list = json::parse(reply->str);
+        new_list = list;
+    }
+    freeReplyObject(reply);
+
+    objects::comment new_comment = {-1, atoi(d_id), 0, user_id, content};
+
+    new_list.push_back(new_comment);
+
+    json j = new_list;
+    reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
+    freeReplyObject(reply);
+
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    strcat(redis_d_id, "diary_");
-    strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "comments");
-
-    reply = REDIS_COMMAND(redis_cli, "SET %s", redis_d_id);
-
-    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_printf_http_chunk(nc, "%s", "{ \"success\": 1 }");
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
-    freeReplyObject(reply);
 }
 
 static void handle_get_comments(struct mg_connection *nc, struct http_message *hm) {
@@ -264,12 +276,12 @@ static void handle_get_comments(struct mg_connection *nc, struct http_message *h
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
 
-    /* Send headers */
     strcat(redis_d_id, d_id);
     strcat(redis_d_id, "_comments");
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
 
+    /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", reply->str);
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
