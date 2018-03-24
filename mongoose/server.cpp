@@ -376,6 +376,7 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     json resp;
     resp["success"] = success ? 1 : 0;
     resp["ver"] = redis_like.ver;
+    resp["num"] = redis_like.num;
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
