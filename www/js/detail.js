@@ -107,7 +107,9 @@ function like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        location.reload();
+        if (msg.success == 1) {
+            $("#like-num").text(parseInt($("#like-num").text()) + 1);
+        }
     });
 }
 
