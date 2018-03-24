@@ -16,6 +16,9 @@
 typedef void* thread_func_t (void *);
 #define REDIS_COMMAND (redisReply *)redisCommand
 
+const char *success_str = "{ \"success\": 1 }";
+const char *fail_str = "{ \"success\": 0 }";
+
 static const char *s_http_port = "8000";
 static struct mg_serve_http_opts s_http_server_opts;
 
@@ -207,8 +210,6 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     bool success = true;
     char diary_id[16], user[16], snapshot_ver[16], content[1024];
     char redis_d_id[34] = "diary_";
-    char *success_str = "{ \"success\": 1 }";
-    char *fail_str = "{ \"success\": 0 }";
     mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
     mg_get_http_var(&hm->body, "user_id", user, sizeof(user));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
@@ -339,6 +340,7 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     char redis_d_id[100] = "diary_", d_id[100];
     char s_ver[16];
     redisReply *reply;
+    bool success = true;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
@@ -367,11 +369,13 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
         freeReplyObject(reply);
         if (!psi_mode)
             SYNC_REPLICA;
+    } else {
+        success = false;
     }
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", "{ \"success\": 1 }");
+    mg_printf_http_chunk(nc, "%s", success ? success_str : fail_str);
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
