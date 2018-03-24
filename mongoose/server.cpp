@@ -258,16 +258,15 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
 }
 
 static void handle_get_comments(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100], d_id[100];
+    char redis_d_id[100] = "diary_", d_id[100];
     redisReply *reply;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
 
     /* Send headers */
-    strcat(redis_d_id, "diary_");
     strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "comments");
+    strcat(redis_d_id, "_comments");
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
 

@@ -1,5 +1,7 @@
 var diary_version = -1;
 
+const user_map = {"bh": "卜衡", "cs": "曹慎", "xhn": "徐海宁", "wsy":  "王思源", "lzc": "刘志成", "wn": "王宁"};
+
 function get_diary_content() {
     const d_id = $.getUrlParam("diary_id");
     const $title = $("#title");
@@ -28,7 +30,10 @@ function get_comments() {
         data: {diary_id: d_id},
         dataType: "json"
     }).done(function(msg) {
-        console.log(msg);
+        const $list = $("#comment-list");
+        for (let i = 0; i < msg.length; i++) {
+            $list.append("<li class=\"list-group-item\">"+msg[i].content+"("+user_map[msg[i].user]+")"+"</li>");
+        }
     });
 }
 
