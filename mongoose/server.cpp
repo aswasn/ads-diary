@@ -53,7 +53,7 @@ std::list<rep_msg_t> msg_list;
 
 void redis_init()
 {
-    struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+    struct timeval timeout = { 60, 500000 }; // 1.5 seconds
     char *hostname = "127.0.0.1";
     int port = 6379;
     redis_cli = redisConnectWithTimeout(hostname, port, timeout);
@@ -157,7 +157,7 @@ static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
   /* Compute the result and send it back as a JSON object */
   result = strtod(n1, NULL) + strtod(n2, NULL);
 
-  reply = REDIS_COMMAND(redis_cli,"SET %s %d", "sum", (int)result);
+  reply = REDIS_COMMAND(redis_cli, "SET %s %d", "sum", (int)result);
   printf("REDIS_CLI: SET: %s\n", reply->str);
   freeReplyObject(reply);
 
@@ -167,23 +167,49 @@ static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
 
 // api/get_diary_content, read from local redis
 static void handle_get_diary_content(struct mg_connection *nc, struct http_message *hm) {
-  char diary_id[100];
-  redisReply *reply;
-  // TODO
+    char redis_d_id[100] = "diary_", d_id[100];
+    redisReply *reply;
 
+    /* Get form variables */
+    mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
+
+    strncat(redis_d_id, d_id, 10);
+
+    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    printf("REDIS: GET %s: %s\n", redis_d_id, reply->str);
+
+    /* Send headers */
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+    freeReplyObject(reply);
 }
 
 
 static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm) {
+    // TODO
 
-    char diary_id[16], user_id[16];
-    char text[1024];
+    objects::diary d;
+    json j;
+    std::stringstream ss;
+    char diary_id[16], user[16];
+    char content[1024];
     mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
-    mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
-    mg_get_http_var(&hm->body, "content", text, sizeof(text));
+    mg_get_http_var(&hm->body, "user_id", user, sizeof(user));
+    mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
-    printf("DEBUG: handle_edit_diary: diary_id: '%s', user_id: '%s', text: '%s'\n",
-            diary_id, user_id, text);
+    d.content = std::string(content);
+    d.user = std::string(user);
+    d.id = std::atoi(&diary_id[0]);
+    d.utime = timer::get_usec();
+
+    j = d;
+    ss << j;
+
+    printf("DEBUG: handle_edit_diary: diary: %s\n", ss.str().c_str());
+
+    // printf("DEBUG: handle_edit_diary: diary_id: '%s', user: '%s', text: '%s'\n",
+            // diary_id, user_id, text);
 
 
     /* Send response */
@@ -275,6 +301,9 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   }
 }
 
+
+void generate_data();
+
 int main(int argc, char *argv[]) {
   struct mg_mgr mgr;
   struct mg_connection *nc;
@@ -336,7 +365,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::stringstream ss;
-  objects::diary diary = {1, "wsy", "Hello world", timer::get_usec()};
+  objects::diary diary = {1, 0, "wsy", "Hello world", timer::get_usec()};
   objects::diary diary2;
 
   json j = diary;
@@ -347,8 +376,8 @@ int main(int argc, char *argv[]) {
   ss >> j2;
 
   diary2 = j2;
-  printf("Object: diray2{id: %d, user:%s, content:%s, uitme:%lu}\n",
-          diary2.id, diary2.user.c_str(), diary2.content.c_str(), diary2.utime);
+  printf("Object: diray2{id: %d, ver: %d, user:%s, content:%s, uitme:%lu}\n",
+          diary2.id, diary2.ver, diary2.user.c_str(), diary2.content.c_str(), diary2.utime);
 
   /* Siyuan: 临时注释
    * replicater_init(&replicater, remote_host, remote_port, local_port);
@@ -380,6 +409,13 @@ int main(int argc, char *argv[]) {
 
   printf("Starting RESTful server on port %s, serving %s\n", s_http_port,
          s_http_server_opts.document_root);
+
+
+  generate_data();
+
+  // reply = REDIS_COMMAND(redis_cli, "GET %s", "diary_1");
+  // printf("REDIS: GET %s: %s\n", "diary_1", reply->str);
+
   for (;;) {
     mg_mgr_poll(&mgr, 1000);
   }
@@ -388,4 +424,53 @@ int main(int argc, char *argv[]) {
   mg_mgr_free(&mgr);
 
   return 0;
+}
+
+
+void generate_data()
+{
+    redisReply *reply;
+    json d1 =  R"(
+          {
+            "id": 1,
+            "ver": 0,
+            "user": "bh",
+            "content": "今天早上爸爸带我们全家去植物园，沿路上蝉声一直吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱……叫个不停，感觉很舒服",
+            "utime": 0
+          }
+        )"_json;
+
+
+    json d2 =  R"(
+          {
+            "id": 2,
+            "ver": 0,
+            "user": "bh",
+            "content": "今天和妈妈去爬山，到了山顶，妈妈说安静的山间会有回音喔。我和表弟一起试着大叫━━“你好吗”果然大约3秒之后就听到：你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗（以下删去170多句“你好吗”）……一个字都没变，课本说的音波反射，我终于体会到了。真是有意义的一天。",
+            "utime": 0
+          }
+        )"_json;
+
+    json d3 =  R"(
+          {
+            "id": 2,
+            "ver": 0,
+            "user": "bh",
+            "content": "还记得5天前的我，活蹦乱跳，如猴子一般。而因为显瘦，便连秋裤都没穿，但是现在呢，整天如企鹅一般，因为生病我连最爱的体育课都上不了，还真的是不能逞英雄，原本想逞英雄，如今成狗熊啊。再次跟大家提个醒，多穿点衣服哦，不然就如我一样，英雄变狗熊。",
+            "utime": 0
+          }
+        )"_json;
+
+
+    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_1", d1.dump().c_str());
+    freeReplyObject(reply);
+
+    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_2", d2.dump().c_str());
+    freeReplyObject(reply);
+
+    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_3", d3.dump().c_str());
+    freeReplyObject(reply);
+
+    printf("generate_data: done!\n");
+
 }
