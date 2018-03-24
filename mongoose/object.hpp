@@ -23,7 +23,7 @@ namespace objects {
     struct like {
         int diary_id;
         int num;
-    }
+    };
 
     void to_json(json& j, const diary& d) {
         j = json{{"id", d.id}, {"user", d.user}, {"content", d.content}, {"utime", d.utime}};
