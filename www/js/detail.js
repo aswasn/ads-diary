@@ -110,6 +110,7 @@ function like() {
         if (msg.success == 1) {
             $("#like-num").text(parseInt($("#like-num").text()) + 1);
         }
+        like_version = msg.ver;
     });
 }
 
