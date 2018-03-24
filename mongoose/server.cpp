@@ -212,7 +212,6 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
     mg_get_http_var(&hm->body, "snapshot_ver", snapshot_ver, sizeof(content));
 
-
     d.id = std::atoi(&diary_id[0]);
     d.ver = std::atoi(&snapshot_ver[0]);
     d.content = std::string(content);
@@ -225,6 +224,9 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
 
     objects::diary redis_d = json::parse(reply->str);
     freeReplyObject(reply);
+
+
+
     if (d.id == redis_d.id && d.ver == redis_d.ver) {
         redis_d.content = d.content;
         redis_d.ver += 1;
@@ -233,7 +235,8 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
         json j;
         j = redis_d;
 
-        reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
+        redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
+        reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
         freeReplyObject(reply);
 
         if (!psi_mode)
@@ -274,7 +277,10 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     new_list.push_back(new_comment);
 
     json j = new_list;
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
+
+
+    redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
+    reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
     freeReplyObject(reply);
     if (!psi_mode)
         SYNC_REPLICA;
@@ -334,7 +340,9 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     strcat(redis_d_id, d_id);
     strcat(redis_d_id, "_like");
 
-    reply = REDIS_COMMAND(redis_cli, "INCR %s", redis_d_id);
+
+    redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
+    reply = REDIS_COMMAND(cli, "INCR %s", redis_d_id);
     freeReplyObject(reply);
     if (!psi_mode)
         SYNC_REPLICA;
