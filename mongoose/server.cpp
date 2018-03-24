@@ -193,11 +193,45 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
 }
 
 static void handle_add_comment(struct mg_connection *nc, struct http_message *hm) {
-// TODO
+    char redis_d_id[100], d_id[100], user_id[100], content[500];
+    redisReply *reply;
+
+    /* Get form variables */
+    mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
+    mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
+    mg_get_http_var(&hm->body, "content", content, sizeof(content));
+
+    /* Send headers */
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+    strcat(redis_d_id, "diary_");
+    strcat(redis_d_id, d_id);
+    strcat(redis_d_id, "comments");
+
+    reply = REDIS_COMMAND(redis_cli, "SET %s", redis_d_id);
+
+    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+    freeReplyObject(reply);
 }
 
 static void handle_get_comments(struct mg_connection *nc, struct http_message *hm) {
-// TODO
+    char redis_d_id[100], d_id[100];
+    redisReply *reply;
+
+    /* Get form variables */
+    mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
+
+    /* Send headers */
+    mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+    strcat(redis_d_id, "diary_");
+    strcat(redis_d_id, d_id);
+    strcat(redis_d_id, "comments");
+
+    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+
+    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+    freeReplyObject(reply);
 }
 
 static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
