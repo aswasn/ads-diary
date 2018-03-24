@@ -5,6 +5,7 @@ using json = nlohmann::json;
 namespace objects {
     struct diary {
         int id;
+        int ver;    // version
         std::string user;
         std::string content;
         uint64_t utime;
@@ -13,6 +14,7 @@ namespace objects {
 
     struct comment {
         int id;
+        int ver;    // version
         std::string user;
         int diary_id;
         std::string content;
