@@ -29,6 +29,7 @@ static void *zmq_ctx;
 static char key_[MAX_KEY_LEN];
 static char value_[MAX_VALUE_LEN];
 static bool global_slave = false;
+static bool psi_mode = false;
 
 struct rep_msg_t {
     uint32_t key_len;
@@ -432,10 +433,10 @@ int main(int argc, char *argv[]) {
         local_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--slave") == 0 && i + 1 < argc) {
         global_slave = true;
-        assert(global_slave);
+    } else if (strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
+        psi_mode = true;
     } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
         strncpy(key_, argv[++i], MAX_KEY_LEN);
-
     } else if (strcmp(argv[i], "--value") == 0 && i + 1 < argc) {
         strncpy(value_, argv[++i], 1024);
 
