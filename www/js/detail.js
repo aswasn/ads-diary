@@ -1,3 +1,5 @@
+var diary_version = -1;
+
 function get_diary_content() {
     const d_id = $.getUrlParam("diary_id");
     const $title = $("#title");
@@ -13,6 +15,8 @@ function get_diary_content() {
         dataType: "json"
     }).done(function(msg) {
         $("#content,#edit-textarea").text(msg.content);
+        diary_version = msg.ver;
+        console.log("diary_version: " + diary_version);
     });
 }
 
@@ -56,11 +60,16 @@ function submit_edit() {
         data: {
             diary_id: d_id,
             content: text,
-            user_id: u_id
+            user_id: u_id,
+            snapshot_ver: diary_version
         },
         dataType: "json"
     }).done(function(msg) {
-        console.log(msg);
+        if (msg.success == 1) {
+            $("#edit-success-modal").modal("show");
+        } else {
+            $("#edit-fail-modal").modal("show");
+        }
     });
 }
 
@@ -101,4 +110,5 @@ $(function() {
     $("#send-comment-btn").on("click", send_comment);
     $("#like-btn").on("click", like);
     $("#submit-edit-btn").on("click", submit_edit);
+    $(".reload-btn").on("click", function() { location.reload(); });
 });
