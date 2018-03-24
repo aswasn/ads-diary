@@ -340,7 +340,7 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     char redis_d_id[100] = "diary_", d_id[100];
     char s_ver[16];
     redisReply *reply;
-    bool success = true;
+    bool success;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
@@ -369,13 +369,17 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
         freeReplyObject(reply);
         if (!psi_mode)
             SYNC_REPLICA;
+        success = true;
     } else {
         success = false;
     }
+    json resp;
+    resp["success"] = success ? 1 : 0;
+    resp["ver"] = redis_like.ver;
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", success ? success_str : fail_str);
+    mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
