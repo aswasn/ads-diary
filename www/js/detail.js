@@ -1,5 +1,11 @@
 function get_diary_content() {
     const d_id = $.getUrlParam("diary_id");
+    const $title = $("#title");
+    switch (d_id) {
+        case "1": $title.text("科研脱发记录");break;
+        case "2": $title.text("朋克养生食谱");break;
+        case "3": $title.text("2018新年计划");break;
+    }
     $.ajax({
         url: "api/get_diary_content",
         method: "post",
