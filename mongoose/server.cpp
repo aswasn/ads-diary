@@ -1,4 +1,5 @@
 #include "mongoose.h"
+#include "object.hpp"
 #include <hiredis.h>
 #include <zmq.h>
 #include <pthread.h>
@@ -8,6 +9,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <list>
+#include <sstream>
+#include "timer.hpp"
 
 typedef void* thread_func_t (void *);
 #define REDIS_COMMAND (redisReply *)redisCommand
@@ -275,12 +278,25 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  std::stringstream ss;
+  objects::diary diary = {1, "wsy", "Hello world", timer::get_usec()};
+  objects::diary diary2;
 
-  replicater_init(&replicater, remote_host, remote_port, local_port);
-  // assert(replicater.remote_port > 0);
-  // assert(replicater.local_port > 0);
-  pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
-  printf("replicater created!\n");
+  json j = diary;
+  json j2;
+  ss << j;
+
+  printf("JSON: diray: %s\n", ss.str().c_str());
+  ss >> j2;
+
+  diary2 = j2;
+  printf("Object: diray2{id: %d, user:%s, content:%s, uitme:%lu}\n",
+          diary2.id, diary2.user.c_str(), diary2.content.c_str(), diary2.utime);
+
+  /* Siyuan: 临时注释
+   * replicater_init(&replicater, remote_host, remote_port, local_port);
+   * pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
+   * printf("replicater created!\n"); */
 
 
   // rep_msg_t rep_msg;
