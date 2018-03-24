@@ -11,7 +11,6 @@ namespace objects {
         uint64_t utime;
     };
 
-
     struct comment {
         int id;
         int diary_id;
@@ -23,6 +22,7 @@ namespace objects {
     struct like {
         int diary_id;
         int num;
+        int ver;
     };
 
     void to_json(json& j, const diary& d) {
@@ -48,11 +48,12 @@ namespace objects {
     }
 
     void to_json(json& j, const like& l) {
-        j = json{{"diary_id", l.diary_id}, {"num", l.num}};
+        j = json{{"diary_id", l.diary_id}, {"num", l.num}, {"ver", l.ver}};
     }
 
     void from_json(const json& j, like& l) {
         l.diary_id = j.at("diary_id").get<int>();
         l.num = j.at("num").get<int>();
+        l.ver = j.at("ver").get<int>();
     }
 }
