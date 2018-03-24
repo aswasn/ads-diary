@@ -58,9 +58,26 @@ function submit_edit() {
     });
 }
 
+function like() {
+    const d_id = $.getUrlParam("diary_id");
+    const u_id = Cookies.get("user");
+    $.ajax({
+        url: "api/like",
+        method: "post",
+        data: {
+            diary_id: d_id,
+            user_id: u_id
+        },
+        dataType: "json"
+    }).done(function(msg) {
+        console.log(msg);
+    });
+}
+
 $(function() {
     get_diary_content();
     get_comments();
     $("#send-comment-btn").on("click", send_comment);
+    $("#like-btn").on("click", like);
     $("#submit-edit-btn").on("click", submit_edit);
 });
