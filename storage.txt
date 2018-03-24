@@ -1,0 +1,12 @@
+数据存储格式
+
+
+## Snapshot Isolation
+
+key                             value
+-----------------------------------------------------------------------------------
+diary_1                         {id: xx, ver: xx, uid: xx, content: xx, utime: xx}
+diary_1_like                    {like: xx}
+diary_1_comment                 [{},{}]
+
+
