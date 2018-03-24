@@ -187,34 +187,50 @@ static void handle_get_diary_content(struct mg_connection *nc, struct http_messa
 
 
 static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm) {
-    // TODO
-
     objects::diary d;
-    json j;
     std::stringstream ss;
-    char diary_id[16], user[16];
-    char content[1024];
+    redisReply *reply;
+    bool success = true;
+    char diary_id[16], user[16], snapshot_ver[16], content[1024];
+    char redis_d_id[34] = "diary_";
+    char *success_str = "{ \"success\": 1 }";
+    char *fail_str = "{ \"success\": 0 }";
     mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
     mg_get_http_var(&hm->body, "user_id", user, sizeof(user));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
+    mg_get_http_var(&hm->body, "snapshot_ver", snapshot_ver, sizeof(content));
 
+
+    d.id = std::atoi(&diary_id[0]);
+    d.ver = std::atoi(&snapshot_ver[0]);
     d.content = std::string(content);
     d.user = std::string(user);
-    d.id = std::atoi(&diary_id[0]);
-    d.utime = timer::get_usec();
 
-    j = d;
-    ss << j;
 
-    printf("DEBUG: handle_edit_diary: diary: %s\n", ss.str().c_str());
+    reply = REDIS_COMMAND(redis_cli, "GET diary_%d", d.id);
+    printf("handle_edit_diary: REDIS GET result: %s\n", reply->str);
+    // auto json_obj = json::parse(reply->str);
 
-    // printf("DEBUG: handle_edit_diary: diary_id: '%s', user: '%s', text: '%s'\n",
-            // diary_id, user_id, text);
+    objects::diary redis_d = json::parse(reply->str);
+    freeReplyObject(reply);
+    if (d.id == redis_d.id && d.ver == redis_d.ver) {
+        redis_d.content = d.content;
+        redis_d.ver += 1;
+        strcat(redis_d_id, diary_id);
 
+        json j;
+        j = redis_d;
+
+        reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
+        freeReplyObject(reply);
+
+    } else {
+        success = false;
+    }
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "{ \"success\": 1 }");
+    mg_printf_http_chunk(nc, success ? success_str : fail_str);
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
