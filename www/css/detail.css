@@ -24,3 +24,8 @@
 #title {
     color: #e4356fb2;
 }
+
+#edit-textarea {
+    resize:none;
+    height: 300px;
+}
