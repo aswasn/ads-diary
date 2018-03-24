@@ -26,6 +26,10 @@
     color: #e4356fb2;
 }
 
+#like-num {
+    color: #e4356ffb;
+}
+
 #edit-textarea {
     resize:none;
     height: 300px;

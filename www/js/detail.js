@@ -88,7 +88,7 @@ function get_like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        console.log(msg);
+        $("#like-num").text(msg.num);
     });
 }
 
@@ -104,7 +104,8 @@ function like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        console.log(msg);
+        const like_now = parseInt($("#like-num").text()) + 1;
+        $("#like-num").text(like_now);
     });
 }
 
