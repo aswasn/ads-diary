@@ -64,6 +64,20 @@ function submit_edit() {
     });
 }
 
+function get_like() {
+    const d_id = $.getUrlParam("diary_id");
+    $.ajax({
+        url: "api/get_like",
+        method: "post",
+        data: {
+            diary_id: d_id
+        },
+        dataType: "json"
+    }).done(function(msg) {
+        console.log(msg);
+    });
+}
+
 function like() {
     const d_id = $.getUrlParam("diary_id");
     const u_id = Cookies.get("user");
@@ -83,6 +97,7 @@ function like() {
 $(function() {
     get_diary_content();
     get_comments();
+    get_like();
     $("#send-comment-btn").on("click", send_comment);
     $("#like-btn").on("click", like);
     $("#submit-edit-btn").on("click", submit_edit);

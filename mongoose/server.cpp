@@ -192,6 +192,21 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
+static void handle_add_comment(struct mg_connection *nc, struct http_message *hm) {
+// TODO
+}
+
+static void handle_get_comments(struct mg_connection *nc, struct http_message *hm) {
+// TODO
+}
+
+static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
+// TODO
+}
+
+static void handle_like(struct mg_connection *nc, struct http_message *hm) {
+// TODO
+}
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   struct http_message *hm = (struct http_message *) ev_data;
@@ -204,6 +219,14 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
         handle_get_diary_content(nc, hm); /* Handle RESTful call */
       } else if (mg_vcmp(&hm->uri, "/api/edit_diary") == 0) {
         handle_edit_diary(nc, hm);
+      } else if (mg_vcmp(&hm->uri, "/api/add_comment") == 0) {
+        handle_add_comment(nc, hm);
+      } else if (mg_vcmp(&hm->uri, "/api/get_comments") == 0) {
+        handle_get_comments(nc, hm);
+      } else if (mg_vcmp(&hm->uri, "/api/get_like") == 0) {
+        handle_get_like(nc, hm);
+      } else if (mg_vcmp(&hm->uri, "/api/like") == 0) {
+        handle_like(nc, hm);
       } else if (mg_vcmp(&hm->uri, "/printcontent") == 0) {
         char buf[100] = {0};
         memcpy(buf, hm->body.p,
