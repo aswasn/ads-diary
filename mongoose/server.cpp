@@ -26,6 +26,8 @@ static void *zmq_ctx;
 #define MAX_KEY_LEN 32
 #define MAX_VALUE_LEN 2048
 
+#define SYNC_REPLICA do {reply = REDIS_COMMAND(redis_cli, "wait 1 0"); freeReplyObject(reply);} while(0);
+
 static char key_[MAX_KEY_LEN];
 static char value_[MAX_VALUE_LEN];
 static bool global_slave = false;
@@ -175,29 +177,6 @@ void replicater_init(replicater_t *r, char *remote_host, int remote_port, int lo
     r->poll_items[0].events = ZMQ_POLLIN;
 }
 
-static void handle_sum_call(struct mg_connection *nc, struct http_message *hm) {
-  char n1[100], n2[100];
-  double result;
-  redisReply *reply;
-
-  /* Get form variables */
-  mg_get_http_var(&hm->body, "n1", n1, sizeof(n1));
-  mg_get_http_var(&hm->body, "n2", n2, sizeof(n2));
-
-  /* Send headers */
-  mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-
-  /* Compute the result and send it back as a JSON object */
-  result = strtod(n1, NULL) + strtod(n2, NULL);
-
-  reply = REDIS_COMMAND(redis_cli, "SET %s %d", "sum", (int)result);
-  printf("REDIS_CLI: SET: %s\n", reply->str);
-  freeReplyObject(reply);
-
-  mg_printf_http_chunk(nc, "{ \"result\": %lf }", result);
-  mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
-}
-
 // api/get_diary_content, read from local redis
 static void handle_get_diary_content(struct mg_connection *nc, struct http_message *hm) {
     char redis_d_id[100] = "diary_", d_id[100];
@@ -257,6 +236,9 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
         reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
         freeReplyObject(reply);
 
+        if (!psi_mode)
+            SYNC_REPLICA;
+
     } else {
         success = false;
     }
@@ -294,6 +276,8 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     json j = new_list;
     reply = REDIS_COMMAND(redis_cli, "SET %s %s", redis_d_id, j.dump().c_str());
     freeReplyObject(reply);
+    if (!psi_mode)
+        SYNC_REPLICA;
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -351,6 +335,10 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     strcat(redis_d_id, "_like");
 
     reply = REDIS_COMMAND(redis_cli, "INCR %s", redis_d_id);
+    freeReplyObject(reply);
+    if (!psi_mode)
+        SYNC_REPLICA;
+
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", "{ \"success\": 1 }");
@@ -362,9 +350,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
 
   switch (ev) {
     case MG_EV_HTTP_REQUEST:
-      if (mg_vcmp(&hm->uri, "/api/v1/sum") == 0) {
-        handle_sum_call(nc, hm); /* Handle RESTful call */
-      } else if (mg_vcmp(&hm->uri, "/api/get_diary_content") == 0) {
+      if (mg_vcmp(&hm->uri, "/api/get_diary_content") == 0) {
         handle_get_diary_content(nc, hm); /* Handle RESTful call */
       } else if (mg_vcmp(&hm->uri, "/api/edit_diary") == 0) {
         handle_edit_diary(nc, hm);
@@ -489,7 +475,8 @@ int main(int argc, char *argv[]) {
          s_http_server_opts.document_root);
 
 
-  generate_data();
+  if (!global_slave)
+      generate_data();
 
   // reply = REDIS_COMMAND(redis_cli, "GET %s", "diary_1");
   // printf("REDIS: GET %s: %s\n", "diary_1", reply->str);
