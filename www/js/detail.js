@@ -1,4 +1,5 @@
 var diary_version = -1;
+var like_version = -1;
 
 const user_map = {"bh": "卜衡", "cs": "曹慎", "xhn": "徐海宁", "wsy":  "王思源", "lzc": "刘志成", "wn": "王宁"};
 
@@ -88,6 +89,7 @@ function get_like() {
         },
         dataType: "json"
     }).done(function(msg) {
+        if (msg.ver) like_version = msg.ver;
         $("#like-num").text(msg.num);
     });
 }
@@ -100,7 +102,8 @@ function like() {
         method: "post",
         data: {
             diary_id: d_id,
-            user_id: u_id
+            user_id: u_id,
+            snapshot_ver: like_version
         },
         dataType: "json"
     }).done(function(msg) {

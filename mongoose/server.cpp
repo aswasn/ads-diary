@@ -33,6 +33,8 @@ static char value_[MAX_VALUE_LEN];
 static bool global_slave = false;
 static bool psi_mode = false;
 
+static int site_id;
+
 struct rep_msg_t {
     uint32_t key_len;
     uint32_t value_len;
@@ -456,6 +458,9 @@ int main(int argc, char *argv[]) {
 
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
       s_http_server_opts.document_root = argv[++i];
+    } else if (strcmp(argv[i], "-siteid") == 0 && i + 1 < argc) {
+      site_id = atoi(argv[++i]);
+      printf("site id is %d.\n", site_id);
     } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
       s_http_port = argv[++i];
     } else {
