@@ -186,6 +186,10 @@ void *replicater_thread(void *arg)
                 sprintf(lock_key, "%s_lock", rep_msg.key);
                 release_lock(lock_key);
             }
+
+            pthread_mutex_lock(&vts_lock);
+            committedVTS[1 - site_id] += 1;
+            pthread_mutex_unlock(&vts_lock);
         }
 
         pthread_mutex_lock(&mutex);
