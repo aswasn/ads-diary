@@ -120,7 +120,6 @@ void redis_init(char *remote_host)
         exit(1);
     }
 
-
     redis_cli_master = redisConnectWithTimeout(remote_host, PORT, timeout);
     if (redis_cli_master == NULL || redis_cli_master->err) {
         if (redis_cli_master) {
@@ -131,14 +130,6 @@ void redis_init(char *remote_host)
         }
         exit(1);
     }
-
-    reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, PORT);
-    if (reply->type == REDIS_REPLY_ERROR) {
-        printf("ERROR: slaveof %s:%d fail!\n", remote_host, PORT);
-        assert(false);
-    }
-    freeReplyObject(reply);
-
 
     reply = REDIS_COMMAND(redis_cli, "info replication");
     printf("INFO: %s\n", reply->str);
