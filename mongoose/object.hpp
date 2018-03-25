@@ -39,11 +39,10 @@ namespace objects {
     };
 
     // Siyuan: PSI的like用Redis INCR实现
-    struct like {
-        int diary_id;
-        int num;
-        int ver;
-    };
+    // struct like {
+        // int diary_id;
+        // int num;
+    // };
 
 
     void to_json(json& j, const object& o) {
@@ -80,15 +79,5 @@ namespace objects {
         c.user = j.at("user").get<std::string>();
         c.content = j.at("content").get<std::string>();
         c.diary_id = j.at("diary_id").get<int>();
-    }
-
-    void to_json(json& j, const like& l) {
-        j = json{{"diary_id", l.diary_id}, {"num", l.num}, {"ver", l.ver}};
-    }
-
-    void from_json(const json& j, like& l) {
-        l.diary_id = j.at("diary_id").get<int>();
-        l.num = j.at("num").get<int>();
-        l.ver = j.at("ver").get<int>();
     }
 }

@@ -233,20 +233,37 @@ void replicater_init(replicater_t *r, char *remote_host, int remote_port, int lo
 
 // api/get_diary_content, read from local redis
 static void handle_get_diary_content(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100] = "diary_", d_id[100];
+    char hlist_id[100] = "diary_", d_id[100];
     redisReply *reply;
+    std::vector<objects::diary> hlist(20);
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
 
-    strncat(redis_d_id, d_id, 10);
+    strncat(hlist_id, d_id, 10);
+    psi_ver_t max_ver(0,0);
+    int max_idx = 0;
 
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    printf("handle_get_diary_content: REDIS: GET %s: %s\n", redis_d_id, reply->str);
+    reply = REDIS_COMMAND(redis_cli, "LRANGE 0 -1", hlist_id);
+    if (reply->type != REDIS_REPLY_NIL) {
+        for (int i = 0; i < reply->elements; i++) {
+            objects::diary di = json::parse((reply->element[i])->str);
+            if (di.ver.first > max_ver.first && di.ver.second > max_ver.second) {
+                max_ver = di.ver;
+                max_idx = i;
+                hlist.push_back(di);
+            }
+        }
+        freeReplyObject(reply);
+    }
 
+    objects::diary &latest_di = hlist[max_idx];
+    json j = latest_di;
+
+    printf("handle_get_diary_content: hlist_id: %s: latest_diary: %s\n", hlist_id, latest_di.content.c_str());
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_printf_http_chunk(nc, "%s", j.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }
@@ -259,7 +276,6 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     bool success = true;
     char diary_id[16], user[16], ver1[16], ver2[16], content[1024];
     char redis_d_id[34] = "diary_";
-    std::vector<objects::diary> history;
 
     mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
     mg_get_http_var(&hm->body, "user_id", user, sizeof(user));
@@ -353,66 +369,52 @@ static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
     strcat(redis_d_id, d_id);
     strcat(redis_d_id, "_like");
 
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    objects::like like = {atoi(d_id), 0, 0};
-    if (reply->str != NULL)
-        like = json::parse(reply->str);
 
-    /* Send headers */
-    // like.num = reply->str == NULL ? 0 : atoi(reply->str);
-    json j = like;
+    int diary_id = atoi(d_id);
+
+    if (PREFER_SITE(diary_id) == site_id) {
+        reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    } else {
+        reply = REDIS_COMMAND(redis_cli_master, "GET %s", redis_d_id);
+    }
+    int num = atoi(reply->str);
+
+    json resp;
+    resp["diary_id"] = diary_id;
+    resp["num"] = num;
+
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", j.dump().c_str());
+    mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }
 
 static void handle_like(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100] = "diary_", d_id[100];
-    char s_ver[16];
+    char like_key[100] = "diary_", d_id[100];
     redisReply *reply;
     bool success;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
-    mg_get_http_var(&hm->body, "snapshot_ver", s_ver, sizeof(s_ver));
-    strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "_like");
 
     int diary_id = atoi(d_id);
-    int snapshot_ver = atoi(s_ver);
+    sprintf(like_key, "diary_%d_like", diary_id);
 
-
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    objects::like redis_like = {diary_id, 0, 0};// = json.parse(reply->str);
-    redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
-    if (reply->str == NULL) {
-        // do nothing
+    if (PREFER_SITE(diary_id) == site_id) {
+        reply = REDIS_COMMAND(redis_cli, "INCR %s", like_key);
     } else {
-        redis_like = json::parse(reply->str);
+        reply = REDIS_COMMAND(redis_cli_master, "INCR %s", like_key);
     }
 
-    if (diary_id == redis_like.diary_id && snapshot_ver == redis_like.ver) {
-        redis_like.num += 1;
-        redis_like.ver += 1;
-        json j = redis_like;
-        reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
-        freeReplyObject(reply);
-        if (!psi_mode)
-            SYNC_REPLICA;
-        success = true;
-    } else {
-        success = false;
-    }
     json resp;
     resp["success"] = success ? 1 : 0;
-    resp["ver"] = redis_like.ver;
-    resp["num"] = redis_like.num;
+    resp["num"] = reply->integer; //redis_like.num;
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+    freeReplyObject(reply);
 }
 
 /**
