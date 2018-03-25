@@ -253,7 +253,6 @@ static void handle_get_diary_content(struct mg_connection *nc, struct http_messa
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", j.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
-    freeReplyObject(reply);
 }
 
 
