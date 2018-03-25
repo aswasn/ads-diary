@@ -170,7 +170,7 @@ void *replicater_thread(void *arg)
         if (r->poll_items[0].revents & ZMQ_POLLIN) {
             rep_msg_t rep_msg;
 
-            rc = zmq_recv(r->srv_sock, &rep_msg, sizeof(rep_msg_t), 0);
+            rc = zmq_recv(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
             if (rc == -1) {
                 perror("replicater: srv_sock zmq_recv");
                 exit(1);
@@ -204,9 +204,10 @@ void *replicater_thread(void *arg)
         char tmpbuf[10] = {0};
         while (!msg_list.empty()) {
             rep_msg_t rep_msg = msg_list.front();
-            rc = zmq_send(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
+            rc = zmq_send(r->srv_sock, &rep_msg, sizeof(rep_msg_t), 0);
             if (rc == -1) {
-                perror("replicater: cli_sock zmq_send");
+                // perror("replicater: cli_sock zmq_send");
+                perror("replicater: publisher zmq_send");
                 exit(1);
             }
             // rc = zmq_recv(r->cli_sock, tmpbuf, 10, 0);
@@ -214,7 +215,7 @@ void *replicater_thread(void *arg)
                 // perror("replicater: cli_sock zmq_recv");
                 // exit(1);
             // }
-            printf("replicater: cli_sock recved: %s\n", tmpbuf);
+            // printf("replicater: publisher recved: %s\n", tmpbuf);
             msg_list.pop_front();
         }
         pthread_mutex_unlock(&mutex);
@@ -225,8 +226,10 @@ void *replicater_thread(void *arg)
 void replicater_init(replicater_t *r, char *remote_host, int remote_port, int local_port)
 {
     zmq_ctx = zmq_ctx_new();
-    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_PUB);
-    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_SUB);
+    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_SUB);
+    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_PUB);
+    // r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
+    // r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
     r->process = replicater_thread;
     if (strlen(remote_host) == 0)
         strncpy(r->remote_host, "127.0.0.1", 32);
@@ -235,7 +238,8 @@ void replicater_init(replicater_t *r, char *remote_host, int remote_port, int lo
 
     r->remote_port = remote_port == 0 ? 8777 : remote_port;
     r->local_port = local_port == 0 ? 8666 : local_port;
-    r->poll_items[0].socket = r->srv_sock;
+    // r->poll_items[0].socket = r->srv_sock;
+    r->poll_items[0].socket = r->cli_sock;
     r->poll_items[0].events = ZMQ_POLLIN;
 }
 
