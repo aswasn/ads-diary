@@ -13,6 +13,8 @@
 #include <vector>
 #include "timer.hpp"
 
+#define PREFER_SITE(oid) (oid % 2)
+
 typedef void* thread_func_t (void *);
 #define REDIS_COMMAND (redisReply *)redisCommand
 
@@ -22,9 +24,9 @@ const char *fail_str = "{ \"success\": 0 }";
 static const char *s_http_port = "8000";
 static struct mg_serve_http_opts s_http_server_opts;
 
-static redisContext *redis_cli;
-static redisContext *redis_cli_master;
-static void *zmq_ctx;
+redisContext *redis_cli;
+redisContext *redis_cli_master;
+void *zmq_ctx;
 
 #define MAX_KEY_LEN 32
 #define MAX_VALUE_LEN 2048
@@ -37,21 +39,22 @@ static bool global_slave = false;
 static bool psi_mode = false;
 
 static int site_id;
-
-static int seqno = 0;
-
+pthread_mutex_t vts_lock = PTHREAD_MUTEX_INITIALIZER;
 static int committedVTS[2] = {0, 0};
 
-pthread_mutex_t vts_lock;
+#define FAST_CMT 0x11
+#define SLOW_CMT 0x22
 
 struct rep_msg_t {
     rep_msg_t() {}
-    rep_msg_t(const char *k, const char *v, uint32_t k_l, uint32_t v_l) {
+    rep_msg_t(int cmt_type, const char *k, const char *v, uint32_t k_l, uint32_t v_l) {
+        commit_type = cmt_type;
         key_len = k_l;
         value_len = v_l;
         strcpy(key, k);
         strcpy(value, v);
     }
+    int commit_type;
     uint32_t key_len = 0;
     uint32_t value_len = 0;
     char key[MAX_KEY_LEN] = {0};
@@ -71,9 +74,34 @@ struct replicater_t {
 };
 
 
-pthread_mutex_t mutex;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 std::list<rep_msg_t> msg_list;
 
+static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type obj_type);
+static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type type);
+
+
+bool acquire_lock(char *key)
+{
+    redisReply *reply;
+    bool success;
+    reply = REDIS_COMMAND(redis_cli, "INCR %s", key);
+    if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
+        success = true;
+    } else {
+        success = false;
+    }
+    freeReplyObject(reply);
+
+    return success;
+}
+
+void release_lock(char *key)
+{
+    redisReply *reply;
+    reply = REDIS_COMMAND(redis_cli, "SET %s 0", key);
+    freeReplyObject(reply);
+}
 
 void redis_init(char *remote_host)
 {
@@ -123,13 +151,12 @@ void redis_init(char *remote_host)
 
 void *replicater_thread(void *arg)
 {
+    redisReply *reply;
     replicater_t *r = (replicater_t *)arg;
     assert(r->cli_sock != NULL);
     assert(r->srv_sock != NULL);
     char *buf;
-
     int rc;
-
     char remote_addr[48];
     char local_addr[48];
 
@@ -159,8 +186,17 @@ void *replicater_thread(void *arg)
                 perror("replicater: zmq_recv msg_len");
                 exit(1);
             }
-            printf("DEBUG: recved message[key_len:%d, value_len:%d, key: %s, value:%s]\n",
-                    rep_msg.key_len, rep_msg.value_len, rep_msg.key, rep_msg.value);
+            printf("DEBUG: Replicater: recved message[cmt_type: %d, key_len:%d, value_len:%d, key: %s, value:%s]\n",
+                    rep_msg.commit_type, rep_msg.key_len, rep_msg.value_len, rep_msg.key, rep_msg.value);
+
+            reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", rep_msg.key, rep_msg.value);
+            freeReplyObject(reply);
+
+            if (rep_msg.commit_type == SLOW_CMT) {
+                char lock_key[48] = {0};
+                sprintf(lock_key, "%s_lock", rep_msg.key);
+                release_lock(lock_key);
+            }
         }
 
         pthread_mutex_lock(&mutex);
@@ -206,7 +242,7 @@ static void handle_get_diary_content(struct mg_connection *nc, struct http_messa
     strncat(redis_d_id, d_id, 10);
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    printf("REDIS: GET %s: %s\n", redis_d_id, reply->str);
+    printf("handle_get_diary_content: REDIS: GET %s: %s\n", redis_d_id, reply->str);
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -221,45 +257,25 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     std::stringstream ss;
     redisReply *reply;
     bool success = true;
-    char diary_id[16], user[16], snapshot_ver[16], content[1024];
+    char diary_id[16], user[16], ver1[16], ver2[16], content[1024];
     char redis_d_id[34] = "diary_";
+    std::vector<objects::diary> history;
+
     mg_get_http_var(&hm->body, "diary_id", diary_id, sizeof(diary_id));
     mg_get_http_var(&hm->body, "user_id", user, sizeof(user));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
-    mg_get_http_var(&hm->body, "snapshot_ver", snapshot_ver, sizeof(content));
+    mg_get_http_var(&hm->body, "ver1", ver1, sizeof(ver1));
+    mg_get_http_var(&hm->body, "ver2", ver2, sizeof(ver2));
 
     d.id = std::atoi(&diary_id[0]);
-    d.ver = std::atoi(&snapshot_ver[0]);
+    d.ver = psi_ver_t(std::atoi(&ver1[0]), std::atoi(&ver2[0]));
     d.content = std::string(content);
     d.user = std::string(user);
 
-
-    reply = REDIS_COMMAND(redis_cli, "GET diary_%d", d.id);
-    printf("handle_edit_diary: REDIS GET result: %s\n", reply->str);
-    // auto json_obj = json::parse(reply->str);
-
-    objects::diary redis_d = json::parse(reply->str);
-    freeReplyObject(reply);
-
-
-
-    if (d.id == redis_d.id && d.ver == redis_d.ver) {
-        redis_d.content = d.content;
-        redis_d.ver += 1;
-        strcat(redis_d_id, diary_id);
-
-        json j;
-        j = redis_d;
-
-        redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
-        reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
-        freeReplyObject(reply);
-
-        if (!psi_mode)
-            SYNC_REPLICA;
-
+    if (site_id == PREFER_SITE(d.id)) {
+        success = fast_commit(d.ver, &d, objects::DIARY);
     } else {
-        success = false;
+        success = slow_commit(d.ver, &d, objects::DIARY);
     }
 
     /* Send response */
@@ -288,7 +304,9 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     }
     freeReplyObject(reply);
 
-    objects::comment new_comment = {-1, atoi(d_id), 0, user_id, content};
+    // FIX ME
+    // objects::comment new_comment = {-1, atoi(d_id), 0, user_id, content};
+    objects::comment new_comment;
 
     new_list.push_back(new_comment);
 
@@ -397,14 +415,86 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
+/**
+ * If this site is prefer site of the object, use fast commit
+ */
+static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type obj_type) {
+    // std::vector<objects::diary> hlist_d;
+    // std::vector<objects::comment> hlist_cm;
+    redisReply *reply;
+    bool success, rc;
+    char history_key[32] = "diary_";
+    char lock_key[48];
+
+    if (obj_type == objects::DIARY) {
+        sprintf(history_key, "%d", obj->id);
+        sprintf(lock_key, "%s_lock", history_key);
+    } else {
+        sprintf(history_key, "%d_comments", ((objects::comment*)obj)->diary_id);
+        sprintf(lock_key, "%s_lock", history_key);
+    }
+
+    rc = acquire_lock(lock_key);
+    if (!rc) {
+        return false;
+    }
+
+    if (obj_type == objects::DIARY) {
+        // get object history
+        reply = REDIS_COMMAND(redis_cli, "LRANGE %s 0 -1", history_key);
+        if (reply->type != REDIS_REPLY_NIL) {
+            // check whether objs in write-set have conflicts
+            for (int i = 0; i < reply->elements; i++) {
+                objects::object o = json::parse((reply->element[i])->str);
+                if (startTs.first < o.ver.first || startTs.second < o.ver.second) {
+                    freeReplyObject(reply);
+                    printf("fast_commit: first check of conflict fail!\n");
+                    // success = false;
+                    release_lock(lock_key);
+                    return false;
+                }
+            }
+            freeReplyObject(reply);
+        }
+    }
+
+    pthread_mutex_lock(&vts_lock);
+    committedVTS[site_id]++;
+    obj->ver = psi_ver_t(committedVTS[0], committedVTS[1]);
+    pthread_mutex_unlock(&vts_lock);
+
+    json j;
+    if (objects::DIARY == obj_type)
+        j = *((objects::diary*)obj);
+    else if (objects::COMMENT == obj_type) {
+        j = *((objects::comment*)obj);
+    }
+
+    std::string json_str = j.dump();
+    reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_key, json_str.c_str());
+    freeReplyObject(reply);
+
+    rep_msg_t msg(FAST_CMT, history_key, json_str.c_str(), strlen(history_key), json_str.length());
+    pthread_mutex_lock(&mutex);
+    msg_list.push_back(msg);
+    pthread_mutex_unlock(&mutex);
+
+    success = true;
+    goto done;
+
+done:
+    release_lock(lock_key);
+    return success;
+
+}
+
 static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type type) {
     redisReply *reply;
     if (type == objects::DIARY) {
         objects::diary diary = *((objects::diary*) obj);
-        char lock_name[100] = "diary_", history_name[100] = "diary_";
-        strcat(lock_name, to_string(diary.id));
-        strcat(lock_name, "_lock");
-        strcat(history_name, to_string(diary.id));
+        char lock_name[100] = {0}, history_name[100] = {0};
+        sprintf(lock_name, "diary_%d_lock", diary.id);
+        sprintf(history_name, "diary_%d", diary.id);
         reply = REDIS_COMMAND(redis_cli_master, "INCR %s", lock_name);
         if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
             // we can check now
@@ -427,7 +517,7 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
                 std::string diary_json = j.dump();
                 reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_name, diary_json.c_str());
                 freeReplyObject(reply);
-                rep_msg_t msg(history_name, diary_json.c_str(), strlen(history_name), diary_json.length());
+                rep_msg_t msg(SLOW_CMT, history_name, diary_json.c_str(), strlen(history_name), diary_json.length());
                 pthread_mutex_lock(&mutex);
                 msg_list.push_back(msg);
                 pthread_mutex_unlock(&mutex);
@@ -492,11 +582,8 @@ int main(int argc, char *argv[]) {
   int remote_port = 0, local_port = 0;
   char remote_host[32] = {0};
 
-
   memset(&replicater, 0, sizeof(replicater));
-
   mg_mgr_init(&mgr, NULL);
-
 
 
   /* Use current binary directory as document root */
@@ -647,7 +734,8 @@ void generate_data()
         objects::comment com;
         com.id = i;
         com.diary_id = 1;
-        com.ver = 0;
+        // com.ver = 0;
+        com.ver = psi_ver_t(0, 0);
         com.user = users[random() % 3];
         com.content = comments[random() % 4];
         d1_comments.push_back(com);
