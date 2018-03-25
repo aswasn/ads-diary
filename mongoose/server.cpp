@@ -172,9 +172,15 @@ void *replicater_thread(void *arg)
 
             rc = zmq_recv(r->srv_sock, &rep_msg, sizeof(rep_msg_t), 0);
             if (rc == -1) {
-                perror("replicater: zmq_recv msg_len");
+                perror("replicater: srv_sock zmq_recv");
                 exit(1);
             }
+            rc = zmq_send(r->srv_sock, "ok", 2, 0);
+            if (rc == -1) {
+                perror("replicater: srv_sock zmq_send");
+                exit(1);
+            }
+
             printf("DEBUG: Replicater: recved message[cmt_type: %d, key_len:%d, value_len:%d, key: %s, value:%s]\n",
                     rep_msg.commit_type, rep_msg.key_len, rep_msg.value_len, rep_msg.key, rep_msg.value);
 
@@ -194,13 +200,20 @@ void *replicater_thread(void *arg)
 
         pthread_mutex_lock(&mutex);
         // printf("replicater: I am alive. msg_list.size(): %d\n", msg_list.size());
+        char tmpbuf[10] = {0};
         while (!msg_list.empty()) {
             rep_msg_t rep_msg = msg_list.front();
             rc = zmq_send(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
             if (rc == -1) {
-                perror("replicater: zmq_send msg");
+                perror("replicater: cli_sock zmq_send");
                 exit(1);
             }
+            rc = zmq_recv(r->cli_sock, tmpbuf, 10, 0);
+            if (rc == -1) {
+                perror("replicater: cli_sock zmq_recv");
+                exit(1);
+            }
+            printf("replicater: cli_sock recved: %s\n", tmpbuf);
             msg_list.pop_front();
         }
         pthread_mutex_unlock(&mutex);
