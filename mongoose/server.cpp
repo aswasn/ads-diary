@@ -686,7 +686,8 @@ void generate_data()
     json d1 =  R"(
           {
             "id": 1,
-            "ver": 0,
+            "ver1": 0,
+            "ver2": 0,
             "user": "bh",
             "content": "今天早上爸爸带我们全家去植物园，沿路上蝉声一直吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱吱……叫个不停，感觉很舒服",
             "utime": 0
@@ -697,7 +698,8 @@ void generate_data()
     json d2 =  R"(
           {
             "id": 2,
-            "ver": 0,
+            "ver1": 0,
+            "ver2": 0,
             "user": "bh",
             "content": "今天和妈妈去爬山，到了山顶，妈妈说安静的山间会有回音喔。我和表弟一起试着大叫━━“你好吗”果然大约3秒之后就听到：你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗你好吗（以下删去170多句“你好吗”）……一个字都没变，课本说的音波反射，我终于体会到了。真是有意义的一天。",
             "utime": 0
@@ -706,8 +708,9 @@ void generate_data()
 
     json d3 =  R"(
           {
-            "id": 2,
-            "ver": 0,
+            "id": 3,
+            "ver1": 0,
+            "ver2": 0,
             "user": "bh",
             "content": "还记得5天前的我，活蹦乱跳，如猴子一般。而因为显瘦，便连秋裤都没穿，但是现在呢，整天如企鹅一般，因为生病我连最爱的体育课都上不了，还真的是不能逞英雄，原本想逞英雄，如今成狗熊啊。再次跟大家提个醒，多穿点衣服哦，不然就如我一样，英雄变狗熊。",
             "utime": 0
@@ -715,34 +718,31 @@ void generate_data()
         )"_json;
 
 
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_1", d1.dump().c_str());
+    reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", "diary_1", d1.dump().c_str());
     freeReplyObject(reply);
 
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_2", d2.dump().c_str());
+    reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", "diary_2", d2.dump().c_str());
     freeReplyObject(reply);
 
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_3", d3.dump().c_str());
+    reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", "diary_3", d3.dump().c_str());
     freeReplyObject(reply);
 
-    std::vector<std::string> users = {"wn", "wsy", "bh"};
+    std::vector<std::string> users = {"wn", "wsy", "bh", "cs", "xhn", "lzc"};
     std::vector<std::string> comments = {"这是评论1这是评论1这是评论1这是评论1这是评论1", "这是评论2这是评论2这是评论2这是评论2这是评论2",
         "这是评论3这是评论3这是评论3这是评论3", "这是评论4这是评论4这是评论4这是评论4"};
 
     /// comments
-    json d1_comments;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 4; ++i) {
         objects::comment com;
         com.id = i;
         com.diary_id = 1;
-        // com.ver = 0;
         com.ver = psi_ver_t(0, 0);
-        com.user = users[random() % 3];
-        com.content = comments[random() % 4];
-        d1_comments.push_back(com);
+        com.user = users[i];
+        com.content = comments[i];
+        json j = com;
+        reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", "diary_1_comments", j.dump().c_str());
+        freeReplyObject(reply);
     }
-
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_1_comments", d1_comments.dump().c_str());
-    freeReplyObject(reply);
 
     printf("generate_data: done!\n");
 
