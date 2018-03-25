@@ -120,32 +120,29 @@ void redis_init(char *remote_host)
         exit(1);
     }
 
-    // I am slave
-    if (global_slave) {
 
-        redis_cli_master = redisConnectWithTimeout(remote_host, PORT, timeout);
-        if (redis_cli_master == NULL || redis_cli_master->err) {
-            if (redis_cli_master) {
-                printf("Connection error: %s\n", redis_cli_master->errstr);
-                redisFree(redis_cli_master);
-            } else {
-                printf("Connection error: can't allocate redis context\n");
-            }
-            exit(1);
+    redis_cli_master = redisConnectWithTimeout(remote_host, PORT, timeout);
+    if (redis_cli_master == NULL || redis_cli_master->err) {
+        if (redis_cli_master) {
+            printf("Connection error: %s\n", redis_cli_master->errstr);
+            redisFree(redis_cli_master);
+        } else {
+            printf("Connection error: can't allocate redis context\n");
         }
-
-        reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, PORT);
-        if (reply->type == REDIS_REPLY_ERROR) {
-            printf("ERROR: slaveof %s:%d fail!\n", remote_host, PORT);
-            assert(false);
-        }
-        freeReplyObject(reply);
-
-
-        reply = REDIS_COMMAND(redis_cli, "info replication");
-        printf("INFO: %s\n", reply->str);
-        freeReplyObject(reply);
+        exit(1);
     }
+
+    reply = REDIS_COMMAND(redis_cli, "slaveof %s %d", remote_host, PORT);
+    if (reply->type == REDIS_REPLY_ERROR) {
+        printf("ERROR: slaveof %s:%d fail!\n", remote_host, PORT);
+        assert(false);
+    }
+    freeReplyObject(reply);
+
+
+    reply = REDIS_COMMAND(redis_cli, "info replication");
+    printf("INFO: %s\n", reply->str);
+    freeReplyObject(reply);
 
 }
 
@@ -592,18 +589,9 @@ int main(int argc, char *argv[]) {
         remote_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--lport") == 0 && i + 1 < argc) {
         local_port = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "--slave") == 0 && i + 1 < argc) {
-        global_slave = true;
-    } else if (strcmp(argv[i], "--psi") == 0 && i + 1 < argc) {
-        psi_mode = true;
-    } else if (strcmp(argv[i], "--key") == 0 && i + 1 < argc) {
-        strncpy(key_, argv[++i], MAX_KEY_LEN);
-    } else if (strcmp(argv[i], "--value") == 0 && i + 1 < argc) {
-        strncpy(value_, argv[++i], 1024);
-
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
       s_http_server_opts.document_root = argv[++i];
-    } else if (strcmp(argv[i], "-siteid") == 0 && i + 1 < argc) {
+    } else if (strcmp(argv[i], "--siteid") == 0 && i + 1 < argc) {
       site_id = atoi(argv[++i]);
       printf("site id is %d.\n", site_id);
     } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
