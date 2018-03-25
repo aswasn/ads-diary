@@ -26,3 +26,5 @@ diary_1_lock                    0 or 1
 CommitedVTS:    pair<int, int> // (site_1_seqno, site_2_seqno)
 Seqno:          int
 
+### 指令
+./server -d ../www --siteid 1 --rhost 192.168.10.175 --rport 8666 --lport 8777

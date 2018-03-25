@@ -20,6 +20,7 @@ function get_diary_content() {
         $("#content,#edit-textarea").text(msg.content);
         diary_ver1 = msg.ver1;
         diary_ver2 = msg.ver2;
+        console.log("get diary content, ver1:" + diary_ver1 + ", ver2:" + diary_ver2);
     });
 }
 

@@ -298,6 +298,8 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
     objects::comment com(-1, psi_ver_t(0, 0), atoi(d_id), std::string(user_id), std::string(content));
+
+    printf("handle_add_comment, user_id: %s, content: %s\n", user_id, content);
     bool result = fast_commit(psi_ver_t(0, 0), &com, objects::COMMENT);
 
     /* Send headers */
@@ -326,6 +328,8 @@ static void handle_get_comments(struct mg_connection *nc, struct http_message *h
         }
     }
     str += "]";
+
+    printf("handle_get_comments, comments: %s\n", str.c_str());
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -465,6 +469,7 @@ done:
 }
 
 static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type type) {
+    printf("--enter slow_commit, psi_ver_t: <%d, %d>\n", startTs.first, startTs.second);
     redisReply *reply;
     if (type == objects::DIARY) {
         objects::diary diary = *((objects::diary*) obj);
