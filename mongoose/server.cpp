@@ -600,19 +600,9 @@ int main(int argc, char *argv[]) {
   printf("REDIS_CLI: PING: %s\n", reply->str);
   freeReplyObject(reply);
 
-  /* Siyuan: 临时注释
-   * replicater_init(&replicater, remote_host, remote_port, local_port);
-   * pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
-   * printf("replicater created!\n"); */
-
-
-  // rep_msg_t rep_msg;
-  // strncpy(rep_msg.key, key_, MAX_KEY_LEN);
-  // rep_msg.key_len = strlen(rep_msg.key) + 1;
-  // strncpy(rep_msg.value, value_, MAX_VALUE_LEN);
-  // rep_msg.value_len = strlen(rep_msg.value) + 1;
-
-  // msg_list.push_back(rep_msg);
+  replicater_init(&replicater, remote_host, remote_port, local_port);
+  pthread_create(&(replicater.tid), NULL, replicater.process, &replicater);
+  printf("replicater created!\n");
 
   /* Set HTTP server options */
   memset(&bind_opts, 0, sizeof(bind_opts));
