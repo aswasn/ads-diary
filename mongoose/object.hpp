@@ -6,18 +6,24 @@ using json = nlohmann::json;
 typedef std::pair<int,int> psi_ver_t;
 
 namespace objects {
-    struct diary {
+    enum obj_type {
+        DIARY,
+        COMMENT
+    };
+
+    struct object {
         int id;
-        psi_ver_t ver;    // version
+        psi_ver_t ver;
+    };
+
+    struct diary : object {
         std::string user;
         std::string content;
         uint64_t utime;
     };
 
-    struct comment {
-        int id;
+    struct comment : object {
         int diary_id;
-        psi_ver_t ver;    // version
         std::string user;
         std::string content;
     };
