@@ -10,3 +10,19 @@ diary_1_like                    {like: xx}
 diary_1_comment                 [{},{}]
 
 
+## PSI
+key                             value
+-----------------------------------------------------------------------------------
+History:
+diary_1                         [{vec_tmp, data}]
+diary_2                         [{},{}]
+comm_1                          [{}]
+
+Lock:
+diary_1_lock                    0 or 1
+
+
+### 存在server中的
+CommitedVTS:    pair<int, int> // (site_1_seqno, site_2_seqno)
+Seqno:          int
+
