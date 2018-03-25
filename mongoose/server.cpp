@@ -38,11 +38,24 @@ static bool psi_mode = false;
 
 static int site_id;
 
+static int seqno = 0;
+
+static int committedVTS[2] = {0, 0};
+
+pthread_mutex_t vts_lock;
+
 struct rep_msg_t {
-    uint32_t key_len;
-    uint32_t value_len;
-    char key[MAX_KEY_LEN];
-    char value[MAX_VALUE_LEN];
+    rep_msg_t() {}
+    rep_msg_t(const char *k, const char *v, uint32_t k_l, uint32_t v_l) {
+        key_len = k_l;
+        value_len = v_l;
+        strcpy(key, k);
+        strcpy(value, v);
+    }
+    uint32_t key_len = 0;
+    uint32_t value_len = 0;
+    char key[MAX_KEY_LEN] = {0};
+    char value[MAX_VALUE_LEN] = {0};
 } __attribute__((packed));
 
 
@@ -382,6 +395,52 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+}
+
+static bool slow_commit(psi_ver_t startTs, objects::object obj, objects::obj_type type) {
+    redisReply *reply;
+    if (type == objects::DIARY) {
+        objects::diary diary = (objects::diary) obj;
+        char lock_name[100] = "diary_", history_name[100] = "diary_";
+        strcat(lock_name, to_string(diary.id));
+        strcat(lock_name, "_lock");
+        strcat(history_name, to_string(diary.id));
+        reply = REDIS_COMMAND(redis_cli_master, "INCR %s", lock_name);
+        if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
+            // we can check now
+            freeReplyObject(reply);
+            reply = REDIS_COMMAND(redis_cli_master, "LRANGE %s 0 -1", history_name);
+            if (reply->type != REDIS_REPLY_NIL) {
+                for (int i = 0; i < reply->elements; i++) {
+                    objects::diary tmp_d = json::parse((reply->element[i])->str);
+                    if (tmp_d.ver.first > startTs.first || tmp_d.ver.second > startTs.second) {
+                        freeReplyObject(reply);
+                        return false;
+                    }
+                }
+                freeReplyObject(reply);
+                pthread_mutex_lock(&vts_lock);
+                committedVTS[site_id]++;
+                diary.ver = psi_ver_t(committedVTS[0], committedVTS[1]);
+                pthread_mutex_unlock(&vts_lock);
+                json j = diary;
+                std::string diary_json = j.dump();
+                reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_name, diary_json.c_str());
+                freeReplyObject(reply);
+                rep_msg_t msg(history_name, diary_json.c_str(), strlen(history_name), diary_json.length());
+                pthread_mutex_lock(&mutex);
+                msg_list.push_back(msg);
+                pthread_mutex_unlock(&mutex);
+                return true;
+            }
+        } else { // reply->type is not integer or obj has been locked
+            freeReplyObject(reply);
+            return false;
+        }
+    } else {
+        printf("slow commit misused\n");
+        return false;
+    }
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
