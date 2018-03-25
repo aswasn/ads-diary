@@ -615,7 +615,11 @@ int main(int argc, char *argv[]) {
 
   /* PING server */
   reply = REDIS_COMMAND(redis_cli,"PING");
-  printf("REDIS_CLI: PING: %s\n", reply->str);
+  printf("redis_cli: PING: %s\n", reply->str);
+  freeReplyObject(reply);
+
+  reply = REDIS_COMMAND(redis_cli_master,"PING");
+  printf("redis_cli_master: PING: %s\n", reply->str);
   freeReplyObject(reply);
 
   replicater_init(&replicater, remote_host, remote_port, local_port);
