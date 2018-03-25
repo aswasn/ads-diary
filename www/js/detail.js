@@ -1,5 +1,5 @@
-var diary_version = -1;
-var like_version = -1;
+var diary_ver1 = -1;
+var diary_ver2 = -1;
 
 const user_map = {"bh": "卜衡", "cs": "曹慎", "xhn": "徐海宁", "wsy":  "王思源", "lzc": "刘志成", "wn": "王宁"};
 
@@ -18,8 +18,8 @@ function get_diary_content() {
         dataType: "json"
     }).done(function(msg) {
         $("#content,#edit-textarea").text(msg.content);
-        diary_version = msg.ver;
-        console.log("diary_version: " + diary_version);
+        diary_ver1 = msg.ver1;
+        diary_ver2 = msg.ver2;
     });
 }
 
@@ -67,7 +67,8 @@ function submit_edit() {
             diary_id: d_id,
             content: text,
             user_id: u_id,
-            snapshot_ver: diary_version
+            ver1: diary_ver1,
+            ver2: diary_ver2
         },
         dataType: "json"
     }).done(function(msg) {
@@ -89,7 +90,6 @@ function get_like() {
         },
         dataType: "json"
     }).done(function(msg) {
-        if (msg.ver != undefined && msg.ver != null) like_version = msg.ver;
         $("#like-num").text(msg.num);
     });
 }
@@ -102,13 +102,11 @@ function like() {
         method: "post",
         data: {
             diary_id: d_id,
-            user_id: u_id,
-            snapshot_ver: like_version
+            user_id: u_id
         },
         dataType: "json"
     }).done(function(msg) {
         $("#like-num").text(msg.num);
-        like_version = msg.ver;
     });
 }
 
