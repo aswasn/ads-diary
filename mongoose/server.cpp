@@ -656,10 +656,10 @@ int main(int argc, char *argv[]) {
   // reply = REDIS_COMMAND(redis_cli, "GET %s", "diary_1");
   // printf("REDIS: GET %s: %s\n", "diary_1", reply->str);
 
-  rep_msg_t msg(SLOW_CMT, key_, value_, strlen(key_), strlen(value_));
-  pthread_mutex_lock(&mutex);
-  msg_list.push_back(msg);
-  pthread_mutex_unlock(&mutex);
+  // rep_msg_t msg(SLOW_CMT, key_, value_, strlen(key_), strlen(value_));
+  // pthread_mutex_lock(&mutex);
+  // msg_list.push_back(msg);
+  // pthread_mutex_unlock(&mutex);
 
 
 
