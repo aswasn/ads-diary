@@ -208,11 +208,11 @@ void *replicater_thread(void *arg)
                 perror("replicater: cli_sock zmq_send");
                 exit(1);
             }
-            rc = zmq_recv(r->cli_sock, tmpbuf, 10, ZMQ_NOBLOCK);
-            // if (rc == -1) {
-                // perror("replicater: cli_sock zmq_recv");
-                // exit(1);
-            // }
+            rc = zmq_recv(r->cli_sock, tmpbuf, 10, 0);
+            if (rc == -1) {
+                perror("replicater: cli_sock zmq_recv");
+                exit(1);
+            }
             printf("replicater: cli_sock recved: %s\n", tmpbuf);
             msg_list.pop_front();
         }
