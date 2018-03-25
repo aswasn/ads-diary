@@ -223,7 +223,8 @@ void replicater_init(replicater_t *r, char *remote_host, int remote_port, int lo
 static void handle_get_diary_content(struct mg_connection *nc, struct http_message *hm) {
     char hlist_id[100] = "diary_", d_id[100];
     redisReply *reply;
-    std::vector<objects::diary> hlist(20);
+    std::vector<objects::diary> hlist;
+    hlist.reserve(20);
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
@@ -232,11 +233,11 @@ static void handle_get_diary_content(struct mg_connection *nc, struct http_messa
     psi_ver_t max_ver(0,0);
     int max_idx = 0;
 
-    reply = REDIS_COMMAND(redis_cli, "LRANGE 0 -1", hlist_id);
+    reply = REDIS_COMMAND(redis_cli, "LRANGE %s 0 -1", hlist_id);
     if (reply->type != REDIS_REPLY_NIL) {
         for (int i = 0; i < reply->elements; i++) {
             objects::diary di = json::parse((reply->element[i])->str);
-            if (di.ver.first > max_ver.first && di.ver.second > max_ver.second) {
+            if (di.ver.first >= max_ver.first && di.ver.second >= max_ver.second) {
                 max_ver = di.ver;
                 max_idx = i;
                 hlist.push_back(di);
@@ -350,7 +351,7 @@ static void handle_get_like(struct mg_connection *nc, struct http_message *hm) {
     } else {
         reply = REDIS_COMMAND(redis_cli_master, "GET %s", redis_d_id);
     }
-    int num = atoi(reply->str);
+    int num = reply->str == NULL ? 0 : atoi(reply->str);
 
     json resp;
     resp["diary_id"] = diary_id;

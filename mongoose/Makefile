@@ -1,5 +1,5 @@
 SOURCES = $(PROG).cpp mongoose.c
-CFLAGS = -g -O2 -std=c++11 -w -I -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
+CFLAGS = -g -std=c++11 -w -I -Wno-unused-function $(CFLAGS_EXTRA) $(MODULE_CFLAGS)
 
 PROG = server
 MODULE_CFLAGS=-DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
