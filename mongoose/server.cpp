@@ -187,7 +187,9 @@ void *replicater_thread(void *arg)
             }
         }
 
+
         pthread_mutex_lock(&mutex);
+        printf("replicater: I am alive. msg_list.size(): %d\n", msg_list.size());
         while (!msg_list.empty()) {
             rep_msg_t rep_msg = msg_list.front();
             rc = zmq_send(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
