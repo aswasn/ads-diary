@@ -294,30 +294,8 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
-    strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "_comments");
-
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    if (reply->type != REDIS_REPLY_NIL) {
-        std::vector<objects::comment> list = json::parse(reply->str);
-        new_list = list;
-    }
-    freeReplyObject(reply);
-
-    // FIX ME
-    // objects::comment new_comment = {-1, atoi(d_id), 0, user_id, content};
-    objects::comment new_comment;
-
-    new_list.push_back(new_comment);
-
-    json j = new_list;
-
-
-    redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
-    reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
-    freeReplyObject(reply);
-    if (!psi_mode)
-        SYNC_REPLICA;
+    objects::comment com(-1, psi_ver_t(0, 0), atoi(d_id), user_id, content);
+    bool result = fast_commit(psi_ver_t(0, 0), *com, objects::COMMENT);
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -335,11 +313,20 @@ static void handle_get_comments(struct mg_connection *nc, struct http_message *h
     strcat(redis_d_id, d_id);
     strcat(redis_d_id, "_comments");
 
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    reply = REDIS_COMMAND(redis_cli, "LRANGE %s 0 -1", redis_d_id);
+
+    string str = "[";
+    if (reply->type != REDIS_REPLY_NIL) {
+        for (int i = 0; i < reply->elements; i++) {
+            str += (reply->element[i])->str;
+            if (i != reply->elements - 1) str += ",";
+        }
+    }
+    str += "]";
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_printf_http_chunk(nc, "%s", str);
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }
@@ -504,6 +491,8 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
                 for (int i = 0; i < reply->elements; i++) {
                     objects::diary tmp_d = json::parse((reply->element[i])->str);
                     if (tmp_d.ver.first > startTs.first || tmp_d.ver.second > startTs.second) {
+                        freeReplyObject(reply);
+                        reply = REDIS_COMMAND(redis_cli_master, "SET %s 0", lock_name);
                         freeReplyObject(reply);
                         return false;
                     }
