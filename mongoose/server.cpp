@@ -163,6 +163,8 @@ void *replicater_thread(void *arg)
     rc = zmq_connect(r->cli_sock, remote_addr);
     assert(rc == 0);
     printf("DEBUG: sockets setup success\n");
+    rc = zmq_setsockopt(r->cli_sock, ZMQ_SUBSCRIBE, "", 0);
+    assert(rc == 0);
 
     while (1) {
         zmq_poll(r->poll_items, 1, 100);
