@@ -150,7 +150,7 @@ void *replicater_thread(void *arg)
     char local_addr[48];
 
     sprintf(remote_addr, "tcp://%s:%d", r->remote_host, r->remote_port);
-    sprintf(local_addr, "tcp://%s:%d", "127.0.0.1", r->local_port);
+    sprintf(local_addr, "tcp://%s:%d", "*", r->local_port);
     printf("DEBUG: remote_addr: %s\n", remote_addr);
     printf("DEBUG: local_addr: %s\n", local_addr);
 
@@ -188,9 +188,8 @@ void *replicater_thread(void *arg)
             }
         }
 
-
         pthread_mutex_lock(&mutex);
-        printf("replicater: I am alive. msg_list.size(): %d\n", msg_list.size());
+        // printf("replicater: I am alive. msg_list.size(): %d\n", msg_list.size());
         while (!msg_list.empty()) {
             rep_msg_t rep_msg = msg_list.front();
             rc = zmq_send(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
