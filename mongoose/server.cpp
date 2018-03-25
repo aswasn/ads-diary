@@ -397,10 +397,10 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
 }
 
-static bool slow_commit(psi_ver_t startTs, objects::object obj, objects::obj_type type) {
+static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type type) {
     redisReply *reply;
     if (type == objects::DIARY) {
-        objects::diary diary = (objects::diary) obj;
+        objects::diary diary = *((objects::diary*) obj);
         char lock_name[100] = "diary_", history_name[100] = "diary_";
         strcat(lock_name, to_string(diary.id));
         strcat(lock_name, "_lock");
