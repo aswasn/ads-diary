@@ -21,6 +21,7 @@ typedef void* thread_func_t (void *);
 const char *success_str = "{ \"success\": 1 }";
 const char *fail_str = "{ \"success\": 0 }";
 
+
 static const char *s_http_port = "8000";
 static struct mg_serve_http_opts s_http_server_opts;
 
@@ -51,8 +52,8 @@ struct rep_msg_t {
         commit_type = cmt_type;
         key_len = k_l;
         value_len = v_l;
-        strcpy(key, k);
-        strcpy(value, v);
+        strncpy(key, k, k_l);
+        strncpy(value, v, v_l);
     }
     int commit_type;
     uint32_t key_len = 0;
@@ -600,6 +601,10 @@ int main(int argc, char *argv[]) {
         remote_port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--lport") == 0 && i + 1 < argc) {
         local_port = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-k") == 0 && i + 1 < argc) {
+        strcpy(key_, argv[++i]);
+    } else if (strcmp(argv[i], "-v") == 0 && i + 1 < argc) {
+        strcpy(value_, argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
       s_http_server_opts.document_root = argv[++i];
     } else if (strcmp(argv[i], "--siteid") == 0 && i + 1 < argc) {
@@ -651,6 +656,13 @@ int main(int argc, char *argv[]) {
 
   // reply = REDIS_COMMAND(redis_cli, "GET %s", "diary_1");
   // printf("REDIS: GET %s: %s\n", "diary_1", reply->str);
+
+  rep_msg_t msg(SLOW_CMT, key_, value_, strlen(key_), strlen(value_));
+  pthread_mutex_lock(&mutex);
+  msg_list.push_back(msg);
+  pthread_mutex_unlock(&mutex);
+
+
 
   for (;;) {
     mg_mgr_poll(&mgr, 1000);
