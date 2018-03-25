@@ -12,6 +12,11 @@ namespace objects {
     };
 
     struct object {
+        object() { }
+        object(int id, psi_ver_t ver) {
+            this->id = id;
+            this->ver =  ver;
+        }
         int id;
         psi_ver_t ver;
     };
@@ -23,6 +28,11 @@ namespace objects {
     };
 
     struct comment : object {
+        comment() { }
+        comment(int id, psi_ver_t ver, int did,
+                std::string &u, std::string &c)
+            : object(id, ver), diary_id(did), user(u), content(c) {
+        }
         int diary_id;
         std::string user;
         std::string content;
@@ -34,6 +44,17 @@ namespace objects {
         int num;
         int ver;
     };
+
+
+    void to_json(json& j, const object& o) {
+        j = json{{"id", o.id}, {"ver1", o.ver.first}, {"ver2", o.ver.second}};
+    }
+
+    void from_json(const json& j, object& o) {
+        o.id = j.at("id").get<int>();
+        o.ver.first = j.at("ver1").get<int>();
+        o.ver.second = j.at("ver2").get<int>();
+    }
 
     void to_json(json& j, const diary& d) {
         j = json{{"id", d.id}, {"ver1", d.ver.first}, {"ver2", d.ver.second}, {"user", d.user}, {"content", d.content}, {"utime", d.utime}};
