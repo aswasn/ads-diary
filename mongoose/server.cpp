@@ -302,7 +302,6 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
 
 static void handle_add_comment(struct mg_connection *nc, struct http_message *hm) {
     char redis_d_id[100] = "diary_", d_id[100], user_id[100], content[500];
-    std::vector<objects::comment> new_list;
     redisReply *reply;
 
     /* Get form variables */
@@ -310,8 +309,8 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
     mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
-    objects::comment com(-1, psi_ver_t(0, 0), atoi(d_id), user_id, content);
-    bool result = fast_commit(psi_ver_t(0, 0), *com, objects::COMMENT);
+    objects::comment com(-1, psi_ver_t(0, 0), atoi(d_id), std::string(user_id), std::string(content));
+    bool result = fast_commit(psi_ver_t(0, 0), &com, objects::COMMENT);
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -331,7 +330,7 @@ static void handle_get_comments(struct mg_connection *nc, struct http_message *h
 
     reply = REDIS_COMMAND(redis_cli, "LRANGE %s 0 -1", redis_d_id);
 
-    string str = "[";
+    std::string str = "[";
     if (reply->type != REDIS_REPLY_NIL) {
         for (int i = 0; i < reply->elements; i++) {
             str += (reply->element[i])->str;
@@ -342,7 +341,7 @@ static void handle_get_comments(struct mg_connection *nc, struct http_message *h
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", str);
+    mg_printf_http_chunk(nc, "%s", str.c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }

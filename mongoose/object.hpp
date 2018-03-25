@@ -30,7 +30,7 @@ namespace objects {
     struct comment : object {
         comment() { }
         comment(int id, psi_ver_t ver, int did,
-                std::string &u, std::string &c)
+                std::string u, std::string c)
             : object(id, ver), diary_id(did), user(u), content(c) {
         }
         int diary_id;
