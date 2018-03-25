@@ -175,11 +175,12 @@ void *replicater_thread(void *arg)
                 perror("replicater: srv_sock zmq_recv");
                 exit(1);
             }
-            rc = zmq_send(r->srv_sock, "ok", 2, 0);
-            if (rc == -1) {
-                perror("replicater: srv_sock zmq_send");
-                exit(1);
-            }
+
+            // rc = zmq_send(r->srv_sock, "ok", 2, 0);
+            // if (rc == -1) {
+                // perror("replicater: srv_sock zmq_send");
+                // exit(1);
+            // }
 
             printf("DEBUG: Replicater: recved message[cmt_type: %d, key_len:%d, value_len:%d, key: %s, value:%s]\n",
                     rep_msg.commit_type, rep_msg.key_len, rep_msg.value_len, rep_msg.key, rep_msg.value);
@@ -201,18 +202,18 @@ void *replicater_thread(void *arg)
         pthread_mutex_lock(&mutex);
         // printf("replicater: I am alive. msg_list.size(): %d\n", msg_list.size());
         char tmpbuf[10] = {0};
-        if (!msg_list.empty()) {
+        while (!msg_list.empty()) {
             rep_msg_t rep_msg = msg_list.front();
             rc = zmq_send(r->cli_sock, &rep_msg, sizeof(rep_msg_t), 0);
             if (rc == -1) {
                 perror("replicater: cli_sock zmq_send");
                 exit(1);
             }
-            rc = zmq_recv(r->cli_sock, tmpbuf, 10, 0);
-            if (rc == -1) {
-                perror("replicater: cli_sock zmq_recv");
-                exit(1);
-            }
+            // rc = zmq_recv(r->cli_sock, tmpbuf, 10, 0);
+            // if (rc == -1) {
+                // perror("replicater: cli_sock zmq_recv");
+                // exit(1);
+            // }
             printf("replicater: cli_sock recved: %s\n", tmpbuf);
             msg_list.pop_front();
         }
@@ -224,8 +225,8 @@ void *replicater_thread(void *arg)
 void replicater_init(replicater_t *r, char *remote_host, int remote_port, int local_port)
 {
     zmq_ctx = zmq_ctx_new();
-    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_REQ);
-    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_REP);
+    r->cli_sock = zmq_socket(zmq_ctx, ZMQ_PUB);
+    r->srv_sock = zmq_socket(zmq_ctx, ZMQ_SUB);
     r->process = replicater_thread;
     if (strlen(remote_host) == 0)
         strncpy(r->remote_host, "127.0.0.1", 32);
