@@ -429,7 +429,7 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
         sprintf(history_key, "diary_%d", obj->id);
         sprintf(lock_key, "%s_lock", history_key);
     } else {
-        sprintf(history_key, "%d_comments", ((objects::comment*)obj)->diary_id);
+        sprintf(history_key, "diary_%d_comments", ((objects::comment*)obj)->diary_id);
         sprintf(lock_key, "%s_lock", history_key);
     }
     printf("fast_commit: history_key: %s, lock_key: %s\n", history_key, lock_key);
