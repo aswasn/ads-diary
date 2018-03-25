@@ -399,21 +399,24 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
     // std::vector<objects::comment> hlist_cm;
     redisReply *reply;
     bool success, rc;
-    char history_key[32] = "diary_";
+    char history_key[32] = {0};
     char lock_key[48];
 
     if (obj_type == objects::DIARY) {
-        sprintf(history_key, "%d", obj->id);
+        sprintf(history_key, "diary_%d", obj->id);
         sprintf(lock_key, "%s_lock", history_key);
     } else {
         sprintf(history_key, "%d_comments", ((objects::comment*)obj)->diary_id);
         sprintf(lock_key, "%s_lock", history_key);
     }
+    printf("fast_commit: history_key: %s, lock_key: %s\n", history_key, lock_key);
 
     rc = acquire_lock(lock_key);
     if (!rc) {
         return false;
     }
+
+    printf("fast_commit: acuire lock success!\n");
 
     if (obj_type == objects::DIARY) {
         // get object history
@@ -438,6 +441,7 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
     committedVTS[site_id]++;
     obj->ver = psi_ver_t(committedVTS[0], committedVTS[1]);
     pthread_mutex_unlock(&vts_lock);
+    printf("fast_commit: committedVTS modified: [%d, %d]\n", committedVTS[0], committedVTS[1]);
 
     json j;
     if (objects::DIARY == obj_type)
@@ -447,10 +451,13 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
     }
 
     std::string json_str = j.dump();
+    printf("fast_commit: object to be commit: %s\n", j.dump().c_str());
     reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_key, json_str.c_str());
     freeReplyObject(reply);
 
     rep_msg_t msg(FAST_CMT, history_key, json_str.c_str(), strlen(history_key), json_str.length());
+    printf("fast_commit: rep_msg: cmt_type:%x, key_len:%d, value_len:%d, key:%s, value:%s\n",
+            msg.commit_type, msg.key_len, msg.value_len, msg.key, msg.value);
     pthread_mutex_lock(&mutex);
     msg_list.push_back(msg);
     pthread_mutex_unlock(&mutex);
