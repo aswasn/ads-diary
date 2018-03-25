@@ -480,11 +480,15 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
     redisReply *reply;
     if (type == objects::DIARY) {
         objects::diary diary = *((objects::diary*) obj);
+        printf("--diary_id: %d, diary_ver1: %d, dairy_ver2: %d, diary_content: %s\n",
+        diary.id, diary.ver.first, diary.ver.second, diary.content.c_str());
         char lock_name[100] = {0}, history_name[100] = {0};
         sprintf(lock_name, "diary_%d_lock", diary.id);
         sprintf(history_name, "diary_%d", diary.id);
+        printf("lock_name: %s, history_name: %s\n", lock_name, history_name);
         reply = REDIS_COMMAND(redis_cli_master, "INCR %s", lock_name);
         if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
+            printf("lock_value: %d\n", reply->integer);
             // we can check now
             freeReplyObject(reply);
             reply = REDIS_COMMAND(redis_cli_master, "LRANGE %s 0 -1", history_name);
@@ -498,6 +502,7 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
                         return false;
                     }
                 }
+                printf("check no conflict\n");
                 freeReplyObject(reply);
                 pthread_mutex_lock(&vts_lock);
                 committedVTS[site_id]++;
@@ -505,6 +510,7 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
                 pthread_mutex_unlock(&vts_lock);
                 json j = diary;
                 std::string diary_json = j.dump();
+                printf("diary_json: %s\n", diary_json.c_str());
                 reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_name, diary_json.c_str());
                 freeReplyObject(reply);
                 rep_msg_t msg(SLOW_CMT, history_name, diary_json.c_str(), strlen(history_name), diary_json.length());
