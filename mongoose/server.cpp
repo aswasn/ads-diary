@@ -595,7 +595,7 @@ void generate_data()
         "这是评论3这是评论3这是评论3这是评论3", "这是评论4这是评论4这是评论4这是评论4"};
 
     /// comments
-    json d1_comments;
+    json j;
     for (int i = 0; i < 5; ++i) {
         objects::comment com;
         com.id = i;
@@ -603,11 +603,12 @@ void generate_data()
         com.ver = 0;
         com.user = users[random() % 3];
         com.content = comments[random() % 4];
-        d1_comments.push_back(com);
-    }
+        j = com;
 
-    reply = REDIS_COMMAND(redis_cli, "SET %s %s", "diary_1_comments", d1_comments.dump().c_str());
-    freeReplyObject(reply);
+        // d1_comments.push_back(com);
+        reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", "diary_1_comments", j.dump().c_str());
+        freeReplyObject(reply);
+    }
 
     printf("generate_data: done!\n");
 
