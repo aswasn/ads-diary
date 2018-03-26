@@ -67,7 +67,7 @@ void redis_init(char *remote_host)
     redisReply *reply;
     struct timeval timeout = { 60, 500000 }; // 1.5 seconds
     char *local_host = "127.0.0.1";
-    const int PORT = 6379;
+    const int PORT = 6378;
     redis_cli = redisConnectWithTimeout(local_host, PORT, timeout);
     if (redis_cli == NULL || redis_cli->err) {
         if (redis_cli) {
