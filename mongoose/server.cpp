@@ -256,35 +256,30 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
 }
 
 static void handle_add_comment(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100] = "diary_", d_id[100], user_id[100], content[500];
-    std::vector<objects::comment> new_list;
+    char d_id[100], user_id[100], content[500];
+    char history_key[32] = {0};
     redisReply *reply;
+
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
     mg_get_http_var(&hm->body, "user_id", user_id, sizeof(user_id));
     mg_get_http_var(&hm->body, "content", content, sizeof(content));
 
-    strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "_comments");
+    int diary_id = atoi(d_id);
+    sprintf(history_key, "diary_%d_comments", diary_id);
 
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    if (reply->type != REDIS_REPLY_NIL) {
-        std::vector<objects::comment> list = json::parse(reply->str);
-        new_list = list;
-    }
-    freeReplyObject(reply);
+    objects::comment new_comment = {-1, diary_id, 0, user_id, content};
+    json j = new_comment;
 
-    objects::comment new_comment = {-1, atoi(d_id), 0, user_id, content};
-
-    new_list.push_back(new_comment);
-
-    json j = new_list;
-
-
+    std::string json_str = j.dump();
+    printf("add_comment: comment to be add: %s\n", j.dump().c_str());
     redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
-    reply = REDIS_COMMAND(cli, "SET %s %s", redis_d_id, j.dump().c_str());
+
+    // put to master site
+    reply = REDIS_COMMAND(cli, "RPUSH %s %s", history_key, json_str.c_str());
     freeReplyObject(reply);
+
     if (!psi_mode)
         SYNC_REPLICA;
 
@@ -295,20 +290,32 @@ static void handle_add_comment(struct mg_connection *nc, struct http_message *hm
 }
 
 static void handle_get_comments(struct mg_connection *nc, struct http_message *hm) {
-    char redis_d_id[100] = "diary_", d_id[100];
+    char d_id[10];
     redisReply *reply;
 
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
 
-    strcat(redis_d_id, d_id);
-    strcat(redis_d_id, "_comments");
 
-    reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
+    char history_key[32] = {0};
+    int diary_id = atoi(d_id);
+    sprintf(history_key, "diary_%d_comments", diary_id);
+
+    // get comments from local site
+    reply = REDIS_COMMAND(redis_cli, "LRANGE %s 0 -1", history_key);
+
+    std::string str = "[";
+    if (reply->type != REDIS_REPLY_NIL) {
+        for (int i = 0; i < reply->elements; i++) {
+            str += (reply->element[i])->str;
+            if (i != reply->elements - 1) str += ",";
+        }
+    }
+    str += "]";
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
-    mg_printf_http_chunk(nc, "%s", reply->str);
+    mg_printf_http_chunk(nc, "%s", str.c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
     freeReplyObject(reply);
 }
@@ -342,6 +349,8 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     redisReply *reply;
     bool success;
 
+    uint64_t t1, t2;
+    t1 = timer::get_usec();
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
     mg_get_http_var(&hm->body, "snapshot_ver", s_ver, sizeof(s_ver));
@@ -382,6 +391,9 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
+    t2 = timer::get_usec();
+
+    printf("handle_like: time: %lu us\n", t2 - t1);
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
