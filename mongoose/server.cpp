@@ -303,8 +303,10 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     d.user = std::string(user);
 
     if (site_id == PREFER_SITE(d.id)) {
+        printf("当前site为preferred site，使用fast_commit.\n");
         success = fast_commit(d.ver, &d, objects::DIARY);
     } else {
+        printf("当前site不是preferred site，使用slow_commit.\n");
         success = slow_commit(d.ver, &d, objects::DIARY);
     }
 
@@ -404,11 +406,14 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     int diary_id = atoi(d_id);
     sprintf(like_key, "diary_%d_like", diary_id);
 
+    uint64_t start = timer::get_usec();
     if (PREFER_SITE(diary_id) == site_id) {
         reply = REDIS_COMMAND(redis_cli, "INCR %s", like_key);
     } else {
         reply = REDIS_COMMAND(redis_cli_master, "INCR %s", like_key);
     }
+    uint64_t end = timer::get_usec();
+    printf("handle_like: success. time cost: %lu u second\n", (end - start));
 
     json resp;
     resp["success"] = success ? 1 : 0;
@@ -439,14 +444,14 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
         sprintf(history_key, "diary_%d_comments", ((objects::comment*)obj)->diary_id);
         sprintf(lock_key, "%s_lock", history_key);
     }
-    printf("fast_commit: history_key: %s, lock_key: %s\n", history_key, lock_key);
+    // printf("fast_commit: history_key: %s, lock_key: %s\n", history_key, lock_key);
 
     rc = acquire_lock(lock_key);
     if (!rc) {
         return false;
     }
 
-    printf("fast_commit: acuire lock success!\n");
+    printf("fast_commit: acuire lock success!开始检查是否存在conflict.\n");
 
     if (obj_type == objects::DIARY) {
         // get object history
@@ -481,12 +486,12 @@ static bool fast_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
     }
 
     std::string json_str = j.dump();
-    printf("fast_commit: object to be commit: %s\n", j.dump().c_str());
+    printf("fast_commit: 将变更后的object存入history. object to be commit: %s\n", j.dump().c_str());
     reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_key, json_str.c_str());
     freeReplyObject(reply);
 
     rep_msg_t msg(FAST_CMT, history_key, json_str.c_str(), strlen(history_key), json_str.length());
-    printf("fast_commit: rep_msg: cmt_type:%x, key_len:%d, value_len:%d, key:%s, value:%s\n",
+    printf("fast_commit: 准备进行replicate. rep_msg: cmt_type:%x, key_len:%d, value_len:%d, key:%s, value:%s\n",
             msg.commit_type, msg.key_len, msg.value_len, msg.key, msg.value);
     pthread_mutex_lock(&mutex);
     msg_list.push_back(msg);
@@ -502,19 +507,15 @@ done:
 }
 
 static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_type type) {
-    printf("-slow_commit-enter slow_commit, psi_ver_t: <%d, %d>\n", startTs.first, startTs.second);
     redisReply *reply;
     if (type == objects::DIARY) {
         objects::diary diary = *((objects::diary*) obj);
-        printf("-slow_commit-diary_id: %d, diary_ver1: %d, dairy_ver2: %d, diary_content: %s\n",
-        diary.id, diary.ver.first, diary.ver.second, diary.content.c_str());
         char lock_name[100] = {0}, history_name[100] = {0};
         sprintf(lock_name, "diary_%d_lock", diary.id);
         sprintf(history_name, "diary_%d", diary.id);
-        printf("-slow_commit-lock_name: %s, history_name: %s\n", lock_name, history_name);
         reply = REDIS_COMMAND(redis_cli_master, "INCR %s", lock_name);
         if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
-            printf("-slow_commit-lock_value: %d\n", reply->integer);
+            printf("slow_commit: 已获得锁。开始检查preferred_site的history\n");
             // we can check now
             freeReplyObject(reply);
             reply = REDIS_COMMAND(redis_cli_master, "LRANGE %s 0 -1", history_name);
@@ -523,23 +524,28 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
                     objects::diary tmp_d = json::parse((reply->element[i])->str);
                     if (tmp_d.ver.first > startTs.first || tmp_d.ver.second > startTs.second) {
                         freeReplyObject(reply);
+                        printf("slow_commit: 发现冲突！释放锁。\n");
                         reply = REDIS_COMMAND(redis_cli_master, "SET %s 0", lock_name);
+                        printf("slow_commit: 已释放锁，通知client修改失败。\n");
                         freeReplyObject(reply);
                         return false;
                     }
                 }
-                printf("-slow_commit-check no conflict\n");
+                printf("slow_commit: 不存在冲突，可以提交。\n");
                 freeReplyObject(reply);
                 pthread_mutex_lock(&vts_lock);
                 committedVTS[site_id]++;
+                printf("slow_commit: committedVTS modified: [%d, %d]\n", committedVTS[0], committedVTS[1]);
                 diary.ver = psi_ver_t(committedVTS[0], committedVTS[1]);
                 pthread_mutex_unlock(&vts_lock);
                 json j = diary;
                 std::string diary_json = j.dump();
-                printf("-slow_commit-diary_json: %s\n", diary_json.c_str());
+                printf("slow_commit: 将变更后的object存入history. object to be committed: %s\n", diary_json.c_str());
                 reply = REDIS_COMMAND(redis_cli, "RPUSH %s %s", history_name, diary_json.c_str());
                 freeReplyObject(reply);
                 rep_msg_t msg(SLOW_CMT, history_name, diary_json.c_str(), strlen(history_name), diary_json.length());
+                printf("slow_commit: 准备进行replicate. rep_msg: cmt_type:%x, key_len:%d, value_len:%d, key:%s, value:%s\n",
+                    msg.commit_type, msg.key_len, msg.value_len, msg.key, msg.value);
                 pthread_mutex_lock(&mutex);
                 msg_list.push_back(msg);
                 pthread_mutex_unlock(&mutex);
@@ -547,6 +553,7 @@ static bool slow_commit(psi_ver_t startTs, objects::object *obj, objects::obj_ty
             }
         } else { // reply->type is not integer or obj has been locked
             freeReplyObject(reply);
+            printf("slow_commit: 获得锁失败，其他site正在更新。\n");
             return false;
         }
     } else {
