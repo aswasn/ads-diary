@@ -193,7 +193,6 @@ static void handle_get_diary_content(struct mg_connection *nc, struct http_messa
     strncat(redis_d_id, d_id, 10);
 
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
-    printf("REDIS: GET %s: %s\n", redis_d_id, reply->str);
 
     /* Send headers */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -221,14 +220,13 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     d.user = std::string(user);
 
 
+    uint64_t t1, t2;
+    t1 = timer::get_usec();
     reply = REDIS_COMMAND(redis_cli, "GET diary_%d", d.id);
-    printf("handle_edit_diary: REDIS GET result: %s\n", reply->str);
     // auto json_obj = json::parse(reply->str);
 
     objects::diary redis_d = json::parse(reply->str);
     freeReplyObject(reply);
-
-
 
     if (d.id == redis_d.id && d.ver == redis_d.ver) {
         redis_d.content = d.content;
@@ -248,6 +246,8 @@ static void handle_edit_diary(struct mg_connection *nc, struct http_message *hm)
     } else {
         success = false;
     }
+    t2 = timer::get_usec();
+    printf("handle_edit_diary: %lu us\n", t2 - t1);
 
     /* Send response */
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
@@ -350,7 +350,6 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     bool success;
 
     uint64_t t1, t2;
-    t1 = timer::get_usec();
     /* Get form variables */
     mg_get_http_var(&hm->body, "diary_id", d_id, sizeof(d_id));
     mg_get_http_var(&hm->body, "snapshot_ver", s_ver, sizeof(s_ver));
@@ -361,6 +360,7 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     int snapshot_ver = atoi(s_ver);
 
 
+    t1 = timer::get_usec();
     reply = REDIS_COMMAND(redis_cli, "GET %s", redis_d_id);
     objects::like redis_like = {diary_id, 0, 0};// = json.parse(reply->str);
     redisContext *cli = (global_slave ? redis_cli_master : redis_cli);
@@ -382,6 +382,9 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     } else {
         success = false;
     }
+    t2 = timer::get_usec();
+    printf("handle_like: time: %lu us\n", t2 - t1);
+
     json resp;
     resp["success"] = success ? 1 : 0;
     resp["ver"] = redis_like.ver;
@@ -391,9 +394,7 @@ static void handle_like(struct mg_connection *nc, struct http_message *hm) {
     mg_printf(nc, "%s", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
     mg_printf_http_chunk(nc, "%s", resp.dump().c_str());
     mg_send_http_chunk(nc, "", 0); /* Send empty chunk, the end of response */
-    t2 = timer::get_usec();
 
-    printf("handle_like: time: %lu us\n", t2 - t1);
 }
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
